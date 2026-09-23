@@ -1,0 +1,271 @@
+schema_version: 2
+experiment_id: jev-laya-v2
+protocol_revision: v2-preregistered
+seed: 20260923
+output_dir: results/runs/jev-laya-v2
+report_dir: results/reports/v2
+frozen:
+  tag: v2-preregistered
+  hashes_file: configs/v2-freeze.json
+  protocol_file: docs/PROTOCOL-v2.md
+local_runtime:
+  scratch_home: TODO-PIN-ABSOLUTE-SCRATCH-HOME
+  hf_home: TODO-PIN-ABSOLUTE-HF-CACHE
+latency_paraphrases:
+- Select the best category.
+- Which category fits best?
+- Identify the most suitable category.
+- Choose one category for this text.
+- Classify the text into one category.
+- What is the primary category?
+- Pick the closest category.
+- Assign the text to its best category.
+- Which category describes the text?
+- Return the single best category.
+dataset:
+  split_counts:
+    default:
+      pilot: 30
+      calibration: 200
+      test: 300
+    massive:
+      pilot: 30
+      calibration: 200
+      test: 100
+  permutation_items: 100
+  latency_items: 100
+  datasets:
+  - name: agnews
+    kind: btzsc
+    task: topic
+    repository: btzsc/btzsc
+    configuration: agnews
+    source_split: test
+    revision: fef2a2ac62b69c58670047dddf045c53d7c3cb5e
+    instructions: Which single label best describes the input text?
+  - name: emotiondair
+    kind: btzsc
+    task: emotion
+    repository: btzsc/btzsc
+    configuration: emotiondair
+    source_split: test
+    revision: fef2a2ac62b69c58670047dddf045c53d7c3cb5e
+    instructions: Which single label best describes the input text?
+  - name: banking77
+    kind: btzsc
+    task: intent
+    repository: btzsc/btzsc
+    configuration: banking77
+    source_split: test
+    revision: fef2a2ac62b69c58670047dddf045c53d7c3cb5e
+    instructions: Which single label best describes the input text?
+  - name: sms_spam
+    kind: sms
+    task: spam
+    repository: ucirvine/sms_spam
+    source_split: train
+    revision: TODO-PIN-SMS-SPAM
+    labels:
+    - An ordinary personal or service message that is not spam.
+    - 'Spam: unsolicited advertising, prize or lottery claims, scams or phishing.'
+    instructions: Is this SMS message spam?
+  - name: civil_comments
+    kind: civil_comments
+    task: toxicity
+    repository: google/civil_comments
+    source_split: train
+    revision: TODO-PIN-CIVIL-COMMENTS
+    labels:
+    - Not toxic.
+    - 'Toxic: rude, disrespectful, insulting, obscene, threatening or hateful.'
+    instructions: Is this comment toxic?
+  - name: yelp_review_full
+    kind: yelp
+    task: sentiment_score
+    repository: Yelp/yelp_review_full
+    source_split: test
+    revision: TODO-PIN-YELP-REVIEW-FULL
+    labels:
+    - 1 star
+    - 2 stars
+    - 3 stars
+    - 4 stars
+    - 5 stars
+    instructions: How many stars does this Yelp review give?
+  - name: massive_en
+    kind: massive
+    task: intent
+    repository: AmazonScience/massive
+    configuration: en-US
+    source_split: test
+    locale: en-US
+    revision: TODO-PIN-MASSIVE
+    instructions: Which single label best describes the input text?
+  - name: massive_zh
+    kind: massive
+    task: intent
+    repository: AmazonScience/massive
+    configuration: zh-CN
+    source_split: test
+    locale: zh-CN
+    revision: TODO-PIN-MASSIVE
+    instructions: Which single label best describes the input text?
+  - name: massive_km
+    kind: massive
+    task: intent
+    repository: AmazonScience/massive
+    configuration: km-KH
+    source_split: test
+    locale: km-KH
+    revision: TODO-PIN-MASSIVE
+    instructions: Which single label best describes the input text?
+length_rule:
+  required: true
+  qwen_tokenizer_path: TODO-PIN-QWEN-TOKENIZER-PATH
+  laya_tokenizer_paths:
+    base: TODO-PIN-LAYA-BASE-TOKENIZER-PATH
+    multilingual: TODO-PIN-LAYA-MULTILINGUAL-TOKENIZER-PATH
+    typed: TODO-PIN-LAYA-TYPED-TOKENIZER-PATH
+  context_budgets:
+    jev_openrouter: 32000
+    qwen_logit: 32768
+    laya_base: 512
+    laya_multilingual: 1024
+    laya_typed: 1024
+    gliner: 512
+  gliner_tokenizer_path: TODO-PIN-GLINER-TOKENIZER-PATH
+models:
+  jev_openrouter:
+    model_id: typesafe/jev-1.13
+    repeats: 3
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - yelp_review_full
+    - massive_en
+    - massive_zh
+    - massive_km
+    max_cost_usd: 2.0
+    prompt_price_per_token: 4.2e-08
+    reservation_multiplier: 1.5
+    minimum_reservation_usd: 1.0e-05
+  laya_base:
+    model_id: convaiinnovations/laya
+    revision: TODO-PIN-LAYA-REVISION
+    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    checkpoint: english
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - yelp_review_full
+    head_max_len:
+      agnews: TO-FILL-AFTER-PROBE
+      emotiondair: TO-FILL-AFTER-PROBE
+      banking77: TO-FILL-AFTER-PROBE
+      sms_spam: TO-FILL-AFTER-PROBE
+      civil_comments: TO-FILL-AFTER-PROBE
+      yelp_review_full: TO-FILL-AFTER-PROBE
+  laya_multilingual:
+    model_id: convaiinnovations/laya
+    revision: TODO-PIN-LAYA-REVISION
+    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    checkpoint: multilingual
+    repeats: 1
+    datasets:
+    - massive_en
+    - massive_zh
+    - massive_km
+    head_max_len:
+      massive_en: TO-FILL-AFTER-PROBE
+      massive_zh: TO-FILL-AFTER-PROBE
+      massive_km: TO-FILL-AFTER-PROBE
+  laya_typed:
+    model_id: convaiinnovations/laya
+    revision: TODO-PIN-LAYA-REVISION
+    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    checkpoint: typed-decisions
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - yelp_review_full
+    head_max_len:
+      agnews: TO-FILL-AFTER-PROBE
+      emotiondair: TO-FILL-AFTER-PROBE
+      banking77: TO-FILL-AFTER-PROBE
+      sms_spam: TO-FILL-AFTER-PROBE
+      civil_comments: TO-FILL-AFTER-PROBE
+      yelp_review_full: TO-FILL-AFTER-PROBE
+  qwen_logit:
+    model_id: Qwen/Qwen3-1.7B
+    revision: TODO-PIN-QWEN-REVISION
+    local_path: TODO-PIN-QWEN-LOCAL-SNAPSHOT-PATH
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - yelp_review_full
+    - massive_en
+    - massive_zh
+    - massive_km
+    system_prompt: Choose exactly one option ID. Respond with the ID only.
+    user_template: 'Question: {question}
+
+      Text: {text}
+
+      Options:
+
+      {options}
+
+      '
+    score_modes:
+      agnews: TO-FILL-AFTER-PROBE
+      emotiondair: TO-FILL-AFTER-PROBE
+      banking77: TO-FILL-AFTER-PROBE
+      sms_spam: TO-FILL-AFTER-PROBE
+      civil_comments: TO-FILL-AFTER-PROBE
+      yelp_review_full: TO-FILL-AFTER-PROBE
+      massive_en: TO-FILL-AFTER-PROBE
+      massive_zh: TO-FILL-AFTER-PROBE
+      massive_km: TO-FILL-AFTER-PROBE
+  gliner:
+    model_id: fastino/gliner2.5-multi-v1
+    revision: 235cf92d6d4318da9bfca0d08975c8fa7250d13b
+    device: cpu
+    batch_size: 1
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - yelp_review_full
+    - massive_en
+    - massive_zh
+    - massive_km
+metrics:
+  ece_bins: 10
+  error_budget: 0.05
+  bootstrap_resamples: 2000
+  nll_floor: 0.005
+  failure_brier: 2.0
+  failure_nll: 5.298317366548036
+  holm_alpha: 0.05
+confirmatory_family:
+  k: TO-FILL-AFTER-PROBE
+  datasets: TO-FILL-AFTER-PROBE
+  tests: []

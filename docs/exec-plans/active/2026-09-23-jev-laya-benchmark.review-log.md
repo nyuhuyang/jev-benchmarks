@@ -196,3 +196,81 @@ P0 item 2 added: local artifact paths `experiments/models/hf-cache/` (HF_HOME, o
 ## Post-approval amendment 2 (user-requested, 2026-09-23)
 
 The user chose a **public GitHub fork**: `github.com/nyuhuyang/jev-benchmarks`, forked from AbdelStark at `0d610cc`, set as local `origin`; `upstream` push stays disabled. Before publishing, the handoff doc was scrubbed of a session-resume ID and the note on where the key is stored. The plan's Out-of-scope line was updated: pushes to `origin` happen only after the human commit gate, and raw runs, caches, checkpoints and licensed text never leave gitignored paths.
+
+## Post-approval amendment 3 (user-requested, 2026-09-23) — applied during Act 3 verification
+
+**Add GLiNER2.5 as a descriptive contender and harness-validation anchor.** Not in the confirmatory family; k is unchanged.
+
+Plan edits:
+
+1. **Goal / contenders:** add a 4th route, "zero-shot encoder without calibration training": `fastino/gliner2.5-multi-v1` at the revision upstream pinned (`235cf92d6d4318da9bfca0d08975c8fa7250d13b`), CPU, batch size 1, using the existing upstream `gliner` adapter unchanged.
+2. **Question-type mapping:**
+   - choice: native single-label classification;
+   - noul: 2-class classification (`false`, `true`);
+   - score: **5-class nominal** classification. GLiNER has no ordinal notion, so its score results are labelled "nominal — not ordinal-aware". `expected_score = Σ level·p` is still computed for the shared score metrics.
+   - multilingual: runs on MASSIVE en/zh/km (it is the `-multi` checkpoint).
+3. **Conditions:** A and B like every other contender (its probabilities are full vectors, so T-scaling applies).
+4. **Harness-validation anchor (new P3.0, before the v2 pilot):** re-run GLiNER on the **upstream pilot-v1 manifest** (the same 300 BTZSC items, `configs/pilot-v1.yaml`) with the v2 code, and compare with `results/reports/btzsc-pilot-v1.json`. Accuracy/macro-F1/Brier must match to within the deterministic tolerance, since GLiNER on CPU is deterministic; the macro-F1 definition change (R2#9) is accounted for by recomputing the upstream number under both definitions. A mismatch blocks the v2 pilot. This costs nothing and does not involve Jev.
+5. **Length rule (R3#2):** GLiNER's tokenizer and context are added to the static full-request length check. If GLiNER is the binding constraint on any dataset, it is excluded from that dataset (reported N/A) instead of shrinking the shared pool, so the confirmatory pools stay determined by the primary contenders.
+6. **Reporting:** GLiNER appears in all descriptive tables and figures. It never appears in C1–C3.
+7. **Budget/time:** CPU only; roughly +10–20 min total wall-clock. No API spend.
+
+Rationale: the adapter and tests already exist (zero new code); it gives a free, deterministic reproduction check of the forked pipeline against the published upstream numbers; and it adds an "encoder, no RLCD" reference point next to Laya's "encoder + RLCD".
+
+## Act 3 — Build
+
+Builder: Codex (`gpt-6-sol`, `codex exec --yolo`), launched with `OPENROUTER_API_KEY` and `TYPESAFE_API_KEY` unset. Base commit `bbb7859`. PROOF_CMD: `uv sync --extra benchmark --dev && uv lock --check && uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest`. Scope: code only (P1 code, P2, P4/P5 analysis code); no inference, downloads, tags or commits.
+
+### Round 1 — Codex build
+
+Codex report: 30 files changed or added (new adapters `jev_openrouter`/`laya`/`qwen_logit`; `probe`, `v2_runner`, `worker`, `v2_metrics`, `v2_report`; data loaders; configs; `PROTOCOL-v2.md` draft; 6 new test files). Proof passed (70 tests, 90.15% coverage). Reported deviations: UTF-8 bytes as the Jev token bound; Laya 0.3.9 has no trust_remote_code argument.
+
+### Claude's verdict
+
+Proof re-run independently: pass (pytest exit 0, pyright 0 errors, ruff clean, lock check OK). Scope respected (no changes under `docs/exec-plans/` or `results/reports/`, nothing committed). The full diff was read. **REVISE — 3 critical, 1 high, 3 medium/low findings; tests passed because the fakes encoded the same wrong assumptions:**
+
+1. **Critical:** the Jev adapter parses `choices` and noul `probabilities`, but the live API returns `answers`, and noul answers carry only `noul: p`. Every real call would fail after being billed.
+2. **Critical:** 429/5xx responses carry no `usage.cost`, so the code pauses dispatch instead of retrying.
+3. **Critical:** noul and score questions are content-free (generic instruction, criteria `{"true":"true","false":"false"}`), and the Qwen prompt carries no question at all. Per-dataset instructions and option descriptions are required, identical across contenders.
+4. **High:** the prepare-time Laya length counter differs from the runtime truncation assertion, which would turn truncations into penalized failures.
+5. **Medium:** score-type primary accuracy used argmax instead of the shared round(expected) rule; scalar-only contenders got failure penalties instead of N/A; the score MAE penalty was hard-coded at 4.
+6. **Medium:** `repeat_summary`/`flip_summary` groupings could mix splits and repeats.
+7. **Low:** worker stderr was discarded.
+
+Accepted deviation: serial Jev dispatch. Also folded into this fix round: Amendment 3 (GLiNER contender plus the P3.0 anchor command).
+
+### Round 2 — Codex fix round 1 (interrupted)
+
+Codex resumed the same session (`01a0cf99-…`) with the F1–F9 fix list and exited 1 on a **ChatGPT usage limit** (`You've hit your usage limit … try again at 7:48 PM`) while editing tests. No final report was written. State at interruption: F1–F9 were implemented with tests; the only remaining defect was one unformatted test file (`ruff format --check` failed).
+
+### Claude takeover (trivial remainder) and verdict
+
+- **Takeover:** Claude ran `ruff format tests/test_v2_runner_report.py` (mechanical). No logic was changed by Claude. The alternative, waiting ~4 h for the quota reset, was not worth it for a formatting fix.
+- **Verification:** Claude read the fix diff for F1 (live `answers` shape, noul `(1−p, p)`, score order mapping), F2 (4xx/5xx without cost keep the reservation, do not pause, and are retried; only a 2xx without cost or a timeout pauses), F3 (per-dataset instructions and descriptive noul options shared by Jev, Laya and Qwen; Qwen `{question}`), F4 (one shared `laya_request_tokens` helper used by prepare and runtime), F5–F6 (metrics), F7 (`gliner_v2` adapter, `anchor` command with both macro-F1 definitions, confirmatory-family guard), F8 (worker stderr log) and F9 (PROTOCOL deviations). Every fix has tests.
+- **Proof, run by Claude:** exit 0 — ruff clean, format clean (54 files), pyright 0 errors, pytest pass, coverage 90.14%.
+- **Noted, not blocking:**
+  - ~~GLiNER's API accepts label descriptions but no instruction text~~ **Corrected at the commit gate:** `gliner2.classification.ClassificationSchema.task(..., instruction=None)` exists, and the built adapter passes the shared instruction. GLiNER therefore receives the same instruction as the other contenders. Open for P0: `gliner2` also exposes `ordinal()`, so GLiNER score could be run ordinal-aware instead of nominal (Amendment 3). Decide before the freeze.
+  - The anchor tolerance (Brier 1e-6) may be too tight across CPUs (M4 Max → M1 Pro float differences). If P3.0 fails only on Brier at the 1e-6 level, loosen it with a logged reason.
+  - The anchor needs the pilot-v1 manifest, which is regenerated by `prepare` (gitignored); this is an operator step.
+- **Status:** build accepted pending the human diff gate. An optional independent cross-provider inspection via agy/Gemini 3.1 Pro was offered.
+
+### Jev adapter live smoke (user-requested, 2026-09-23, pre-probe, synthetic strings only)
+
+This ran the built `JevOpenRouterBackend` through `_validate_prediction` against OpenRouter `/api/alpha/decisions`. It used hand-written synthetic items only (no benchmark data, so preregistration is unaffected), a $0.01 budget, and an attempt log in the session scratch dir (not the repo).
+
+| Case | Resolved | Result | Latency | Cost |
+|---|---|---|---|---|
+| choice (4 options) | jev-1.13-20260917 | correct, p = 1.00, confidence 1 | 0.40 s | $0.0000157 |
+| choice, permuted order (3,1,0,2) | same | correct; probabilities mapped back to label identity | 0.29 s | $0.0000157 |
+| noul (spam) | same | correct, P(true) = 0.99 | **10.38 s** | $0.0000146 |
+| score (Yelp 1–5) | same | correct, expected level 1.0, confidence 0.99 | 0.24 s | $0.0000143 |
+| latency-10 (10 questions / 1 call) | same | correct | 0.23 s total | $0.0000506 |
+
+Budget settled $0.00011; nothing paused; 5 attempt rows; key-in-log check: False. **Findings:**
+- The end-to-end parsing and validation path works for all three types and for permutation mapping.
+- One 10.4 s outlier (noul) shows the hosted tail latency is real; p95 must be reported, and a 30 s timeout is adequate.
+- The easy synthetic items give saturated 0/1 probabilities, so they are not informative for calibration.
+
+### Commit gate
+
+The user approved commit + push to the fork after the Jev live smoke. The cross-provider inspection was **not performed**: Gemini had 0% quota; Opus 4.6 via agy hit its individual quota after reading the diff and produced no findings; GPT-OSS returned 503 with no capacity. This is an explicit, logged gap. Pre-commit scans passed: no API key, no personal paths, no raw runs or caches.

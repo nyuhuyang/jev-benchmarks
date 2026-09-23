@@ -37,7 +37,19 @@ def load_config(path: str | Path) -> BenchmarkConfig:
         raise ValueError(f"missing config keys: {sorted(missing)}")
     if not raw["dataset"]["datasets"]:
         raise ValueError("at least one dataset is required")
-    if int(raw["dataset"]["samples_per_dataset"]) <= 0:
+    if raw.get("schema_version") == 2:
+        counts = raw["dataset"]["split_counts"]
+        if any(int(value) <= 0 for group in counts.values() for value in group.values()):
+            raise ValueError("v2 split counts must be positive")
+        if set(counts) != {"default", "massive"}:
+            raise ValueError("v2 needs default and massive split counts")
+        family = raw.get("confirmatory_family", {})
+        if "gliner" in str(family):
+            raise ValueError("GLiNER is descriptive only and cannot enter confirmatory_family")
+        for dataset in raw["dataset"]["datasets"]:
+            if not dataset.get("instructions"):
+                raise ValueError(f"{dataset['name']}: v2 dataset instructions are required")
+    elif int(raw["dataset"]["samples_per_dataset"]) <= 0:
         raise ValueError("samples_per_dataset must be positive")
     if int(raw["metrics"]["ece_bins"]) <= 0:
         raise ValueError("ece_bins must be positive")

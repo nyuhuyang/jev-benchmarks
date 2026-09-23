@@ -1,0 +1,69 @@
+schema_version: 2
+experiment_id: jev-laya-v2-probe
+base_config: configs/v2.yaml
+probe_only: true
+seed: 20260923
+model_revisions:
+  laya: TODO-PIN-LAYA-REVISION
+  qwen: TODO-PIN-QWEN-REVISION
+  btzsc: fef2a2ac62b69c58670047dddf045c53d7c3cb5e
+synthetic_items:
+  choice: 'Synthetic routing text: send a parcel to a friend.'
+  noul: 'Synthetic statement: this message contains a made-up offer.'
+  score: 'Synthetic review: the imaginary restaurant was satisfactory.'
+static_checks:
+  laya_output_shapes:
+  - score
+  - noul
+  laya_head_max_len: true
+  complete_request_length: true
+  qwen_rendered_suffixes:
+  - letter
+  - two_digit_joint
+  - full_sequence
+  laya_package_source_review: true
+synthetic_calls:
+  laya_head_feasibility: true
+  laya_score_noul_shape: true
+  qwen_determinism_duplicate: true
+  no_benchmark_items: true
+local_runtime:
+  scratch_home: TODO-PIN-ABSOLUTE-SCRATCH-HOME
+  hf_home: TODO-PIN-ABSOLUTE-HF-CACHE
+datasets:
+- name: agnews
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET
+- name: emotiondair
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET
+- name: banking77
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET
+- name: sms_spam
+  instructions: Is this SMS message spam?
+  labels:
+  - An ordinary personal or service message that is not spam.
+  - 'Spam: unsolicited advertising, prize or lottery claims, scams or phishing.'
+- name: civil_comments
+  instructions: Is this comment toxic?
+  labels:
+  - Not toxic.
+  - 'Toxic: rude, disrespectful, insulting, obscene, threatening or hateful.'
+- name: yelp_review_full
+  instructions: How many stars does this Yelp review give?
+  labels:
+  - 1 star
+  - 2 stars
+  - 3 stars
+  - 4 stars
+  - 5 stars
+- name: massive_en
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET
+- name: massive_zh
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET
+- name: massive_km
+  instructions: Which single label best describes the input text?
+  labels: FROM-PINNED-DATASET

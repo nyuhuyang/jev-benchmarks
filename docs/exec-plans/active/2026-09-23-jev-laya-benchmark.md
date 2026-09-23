@@ -215,6 +215,19 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
 4. Add a row to `study/docs/PLANS.md`.
 
+### Amendment 3 — GLiNER2.5 descriptive contender (user-requested 2026-09-23)
+
+- `fastino/gliner2.5-multi-v1` at the upstream-pinned revision `235cf92d6d4318da9bfca0d08975c8fa7250d13b`, CPU, batch size 1. It reuses the upstream `gliner` adapter through the v2 local-process isolation.
+- Question types:
+  - choice: native;
+  - noul: 2-class;
+  - score: 5-class **nominal**, labelled not ordinal-aware, with `expected_score = Σ level·p`;
+  - MASSIVE en/zh/km included.
+- Conditions A and B.
+- **Descriptive only:** never in C1–C3, and k is unchanged.
+- Length rule: if GLiNER alone overflows, GLiNER is excluded from that dataset (reported N/A). It never shrinks the shared pool.
+- **P3.0 harness anchor (before the v2 pilot):** re-run GLiNER on the upstream pilot-v1 manifest with the v2 code, and compare with `results/reports/btzsc-pilot-v1.json` under both the old (all-classes) and new (targets ∪ predictions) macro-F1 definitions. Deterministic CPU results must match within tolerance. A mismatch blocks the pilot.
+
 ## Key decisions & tradeoffs
 
 - **Q1 — Jev access through OpenRouter**, not TypeSafe direct (no open registration). This adds an OpenRouter hop to latency; the alpha endpoint may change. The resolved snapshot ID is logged on every call.

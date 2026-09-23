@@ -26,6 +26,10 @@ def _latest_predictions(rows: list[dict[str, Any]]) -> list[Prediction]:
 
 
 def build_report(config: BenchmarkConfig) -> tuple[Path, Path]:
+    if config.raw.get("schema_version") == 2:
+        from .v2_report import build_v2_report
+
+        return build_v2_report(config)
     options = {
         "ece_bins": int(config.raw["metrics"]["ece_bins"]),
         "error_budget": float(config.raw["metrics"]["error_budget"]),

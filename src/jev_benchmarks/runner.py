@@ -12,6 +12,14 @@ from .models import Example, Prediction
 
 
 def _validate_prediction(prediction: Prediction) -> Prediction:
+    if prediction.question_type == "score" and not prediction.probabilities:
+        if (
+            prediction.expected_score is None
+            or not math.isfinite(prediction.expected_score)
+            or not 1 <= prediction.expected_score <= len(prediction.labels)
+        ):
+            raise ValueError("scalar expected_score must be finite and within score levels")
+        return prediction
     if len(prediction.labels) != len(prediction.probabilities):
         raise ValueError("labels and probabilities have different lengths")
     if not all(math.isfinite(value) and 0 <= value <= 1 for value in prediction.probabilities):
@@ -25,6 +33,12 @@ def _validate_prediction(prediction: Prediction) -> Prediction:
         prediction,
         probabilities=tuple(value / total for value in prediction.probabilities),
         probability_sum_raw=total,
+        raw_probabilities=prediction.raw_probabilities or prediction.probabilities,
+        expected_score=(
+            sum((index + 1) * value / total for index, value in enumerate(prediction.probabilities))
+            if prediction.question_type == "score"
+            else prediction.expected_score
+        ),
     )
 
 
@@ -56,6 +70,10 @@ def _make_backend(config: BenchmarkConfig, name: str) -> Backend:
 
 
 def run_backend(config: BenchmarkConfig, backend_name: str) -> Path:
+    if config.raw.get("schema_version") == 2:
+        from .v2_runner import run_v2_backend
+
+        return run_v2_backend(config, backend_name)
     manifest_path = config.output_dir / "manifest.jsonl"
     if not manifest_path.exists():
         prepare_manifest(config)

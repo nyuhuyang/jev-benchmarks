@@ -90,6 +90,57 @@ uv run jev-bench report --config configs/pilot-v1.yaml
 The Jev SDK also honors `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL`. Never commit credentials.
 GLiNER downloads the pinned checkpoint on first use.
 
+### V2 code path
+
+[The v2 draft protocol](docs/PROTOCOL-v2.md) covers choice, binary noul and five-level score
+questions across Jev via OpenRouter, three local Laya checkpoints and local Qwen3-1.7B logits.
+GLiNER2.5 runs on all nine datasets as a descriptive contender and is excluded from the
+confirmatory family.
+`configs/v2.yaml` and `configs/probe-v2.yaml` are templates. A human operator must pin all
+`TODO-PIN` revisions and paths, complete the synthetic capability checks, fill every
+`TO-FILL-AFTER-PROBE` field, prepare the manifest, record hashes in `configs/v2-freeze.json`, and
+create the `v2-preregistered` tag before test inference.
+
+After pinning the external artifacts, commit both configs under `v2-probe`. The probe command
+checks tokenization and the installed Laya package source; without `--static-only`, it also makes
+synthetic local-model calls and writes an ignored `probe-results.json`:
+
+```bash
+uv run jev-bench probe --config configs/probe-v2.yaml --static-only
+uv run jev-bench probe --config configs/probe-v2.yaml
+```
+
+Once revisions and probe fields are complete, prepare the manifest, fill
+`configs/v2-freeze.json`, and commit the frozen artifacts under `v2-preregistered`:
+
+```bash
+uv sync --extra benchmark --extra laya --extra qwen --dev
+uv run jev-bench prepare --config configs/v2.yaml
+```
+
+Before the v2 pilot, run the GLiNER harness anchor on the existing pilot-v1 manifest. It fails on
+any accuracy, Brier, or historical macro-F1 mismatch and writes a comparison beside the raw runs:
+
+```bash
+uv run jev-bench anchor --config configs/pilot-v1.yaml
+```
+
+Then run named splits and backends:
+
+```bash
+uv run jev-bench run --config configs/v2.yaml --backend jev_openrouter --split pilot
+uv run jev-bench run --config configs/v2.yaml --backend laya_base --split calibration
+uv run jev-bench run --config configs/v2.yaml --backend qwen_logit --split test
+uv run jev-bench run --config configs/v2.yaml --backend gliner --split test
+uv run jev-bench report --config configs/v2.yaml
+```
+
+The v2 runner refuses a missing or hash-mismatched manifest, uses a separate attempt namespace for
+each snapshot run, and runs local backends with a minimal offline process environment. Reports use
+complete single-snapshot attempts, derive condition B from stored A probabilities, and write only
+aggregate CSVs and hashes under `results/reports/`. The OpenRouter key is read only from the
+environment at dispatch.
+
 ### Minimal and backend-specific installs
 
 The package keeps heavyweight ML runtimes optional:
@@ -99,7 +150,10 @@ uv sync --dev                # metrics, reporting, tests
 uv sync --extra data         # BTZSC preparation
 uv sync --extra gliner       # local GLiNER inference
 uv sync --extra jev          # hosted Jev inference
-uv sync --extra benchmark    # complete benchmark stack
+uv sync --extra benchmark    # complete v1 benchmark stack
+uv sync --extra openrouter   # hosted v2 adapter (stdlib HTTP)
+uv sync --extra laya         # local Laya runtime
+uv sync --extra qwen         # local Qwen runtime
 ```
 
 ## Reproducibility contract

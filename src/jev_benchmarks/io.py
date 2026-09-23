@@ -10,6 +10,20 @@ from pathlib import Path
 from typing import Any
 
 
+def scrubbed_json(value: Any, secret: str | None = None) -> str:
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False)
+    if secret and secret in serialized:
+        raise ValueError("serialized output contains an API key")
+    return serialized
+
+
+def write_json(path: Path, value: Any, *, secret: str | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(scrubbed_json(value, secret) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -27,10 +41,11 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
     temporary.replace(path)
 
 
-def append_jsonl(path: Path, row: dict[str, Any]) -> None:
+def append_jsonl(path: Path, row: dict[str, Any], *, secret: str | None = None) -> None:
+    serialized = scrubbed_json(row, secret)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+        handle.write(serialized + "\n")
         handle.flush()
         os.fsync(handle.fileno())
 

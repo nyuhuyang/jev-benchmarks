@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'win32'",
@@ -715,6 +715,17 @@ gliner = [
 jev = [
     { name = "typesafe-sdk" },
 ]
+laya = [
+    { name = "laya" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+qwen = [
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -731,16 +742,23 @@ requires-dist = [
     { name = "datasets", marker = "extra == 'data'", specifier = ">=4.0,<5" },
     { name = "gliner2", extras = ["local"], marker = "extra == 'benchmark'", specifier = "==2.0.0" },
     { name = "gliner2", extras = ["local"], marker = "extra == 'gliner'", specifier = "==2.0.0" },
+    { name = "laya", marker = "extra == 'laya'", specifier = "==0.3.9" },
     { name = "numpy", specifier = ">=2.0,<3" },
     { name = "protobuf", marker = "extra == 'benchmark'", specifier = ">=6.0,<7" },
     { name = "protobuf", marker = "extra == 'gliner'", specifier = ">=6.0,<7" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
+    { name = "safetensors", marker = "extra == 'laya'", specifier = ">=0.5,<1" },
+    { name = "safetensors", marker = "extra == 'qwen'", specifier = ">=0.5,<1" },
     { name = "sentencepiece", marker = "extra == 'benchmark'", specifier = ">=0.2,<1" },
     { name = "sentencepiece", marker = "extra == 'gliner'", specifier = ">=0.2,<1" },
+    { name = "torch", marker = "extra == 'laya'", specifier = ">=2.5,<3" },
+    { name = "torch", marker = "extra == 'qwen'", specifier = ">=2.5,<3" },
+    { name = "transformers", marker = "extra == 'laya'", specifier = ">=4.51,<5" },
+    { name = "transformers", marker = "extra == 'qwen'", specifier = ">=4.51,<5" },
     { name = "typesafe-sdk", marker = "extra == 'benchmark'", specifier = "==0.6.0" },
     { name = "typesafe-sdk", marker = "extra == 'jev'", specifier = "==0.6.0" },
 ]
-provides-extras = ["data", "gliner", "jev", "benchmark"]
+provides-extras = ["data", "gliner", "jev", "openrouter", "laya", "qwen", "benchmark"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -761,6 +779,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
+]
+
+[[package]]
+name = "laya"
+version = "0.3.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/89/6eec1f50cbc421fa5b1733d166387eae6bc0dc222a8928ac875c271c8cf1/laya-0.3.9.tar.gz", hash = "sha256:3d255a778a1c70e2ed1fb4129147ccbb7fa96f3d0a0c910b2f41ddacb49ea5f6", size = 201267, upload-time = "2026-09-23T14:55:16.694Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/cc/75f6b030f26b78a0ac0165c455866ab897eee251f7edb115733d4675fcf6/laya-0.3.9-py3-none-any.whl", hash = "sha256:8080d99792867096c970b1b24464e888f3c37d902f2c947be1f8baa3677c9717", size = 93224, upload-time = "2026-09-23T14:55:15.288Z" },
 ]
 
 [[package]]

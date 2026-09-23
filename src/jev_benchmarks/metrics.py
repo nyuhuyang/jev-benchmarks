@@ -12,13 +12,28 @@ from .models import Prediction
 
 def _macro_f1(targets: np.ndarray, predictions: np.ndarray, n_classes: int) -> float:
     scores = []
+    present = sorted(set(targets.tolist()) | set(predictions.tolist()))
+    for class_id in present:
+        if class_id < 0 or class_id >= n_classes:
+            # A failure is scored as incorrect and contributes no extra class to the denominator.
+            continue
+        tp = int(np.sum((targets == class_id) & (predictions == class_id)))
+        fp = int(np.sum((targets != class_id) & (predictions == class_id)))
+        fn = int(np.sum((targets == class_id) & (predictions != class_id)))
+        denominator = 2 * tp + fp + fn
+        scores.append(0.0 if denominator == 0 else 2 * tp / denominator)
+    return float(np.mean(scores)) if scores else 0.0
+
+
+def _macro_f1_all_classes(targets: np.ndarray, predictions: np.ndarray, n_classes: int) -> float:
+    scores = []
     for class_id in range(n_classes):
         tp = int(np.sum((targets == class_id) & (predictions == class_id)))
         fp = int(np.sum((targets != class_id) & (predictions == class_id)))
         fn = int(np.sum((targets == class_id) & (predictions != class_id)))
         denominator = 2 * tp + fp + fn
         scores.append(0.0 if denominator == 0 else 2 * tp / denominator)
-    return float(np.mean(scores))
+    return float(np.mean(scores)) if scores else 0.0
 
 
 def score_predictions(

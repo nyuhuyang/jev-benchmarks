@@ -14,6 +14,9 @@ so a model call can never silently rewrite the evaluation contract.
 | `metrics.py` | Compute discrimination, calibration, selective-risk, latency, controls, and paired intervals. |
 | `report.py` | Verify manifest/prediction identity and produce hashed JSON and Markdown summaries. |
 | `io.py` | Atomic JSONL writes, durable appends, artifact hashing, and runtime metadata. |
+| `v2_runner.py`, `worker.py` | Verify the preregistered hash record, isolate local inference processes, and write split-aware attempt logs. |
+| `v2_metrics.py`, `v2_report.py` | Derive temperature-scaled B from stored A, run failure-aware analysis, and emit aggregate CSVs and hashes. |
+| `anchor.py` | Re-run the pilot-v1 GLiNER manifest through v2 validation and compare both macro-F1 definitions with the published pilot. |
 
 ## Artifact flow
 
@@ -86,6 +89,30 @@ Heavy dependencies are optional:
 - `gliner`: GLiNER2, PyTorch, Transformers, tokenizer dependencies;
 - `jev`: the TypeSafe SDK;
 - `benchmark`: the complete stack.
+- `openrouter`: stdlib hosted adapter; `laya` and `qwen`: local runtimes with lazy imports.
 
 Imports occur only when the corresponding command/backend is selected, so metrics and report tooling
 remain lightweight.
+
+## V2 path
+
+The [v2 draft protocol](PROTOCOL-v2.md) defines choice, noul and score questions. `prepare` applies
+the common full-request length rule before class-balanced sampling, groups normalized text (or
+MASSIVE cross-locale IDs), and writes disjoint pilot, calibration and test rows plus derived
+permutation and latency suites. The permutation split also holds separately labelled Laya
+as-shipped-head rows on K > 20 tasks. `manifest-summary.json` records merged groups and length
+exclusions. GLiNER is descriptive; its overflow excludes that backend from a dataset without
+changing the primary shared sample.
+
+`run --split` for a v2 config requires an existing manifest and a hash record committed at the
+preregistered tag. Records live under `results/runs/<experiment>/<backend>/attempt-<n>/` and resume
+by split, example ID, permutation ID, letter mode and repeat index. A changed Jev snapshot ends the
+attempt. Local backends run in a separate process with only PATH, HOME, HF_HOME and offline HF
+settings; this is process-environment isolation, not an OS sandbox. Worker stderr is retained in
+each attempt directory.
+
+`report` selects a complete single-snapshot attempt per backend. It fits temperatures on calibration
+vectors, derives B without a second inference call, chooses selective thresholds on calibration,
+and scores held-out test rows with failure penalties. The output is `v2.json`, `v2.md`, seven tidy
+aggregate CSVs and `SHA256SUMS` under the configured report directory. Probe-dependent family and
+pin placeholders must be filled before the v2 preregistration tag.
