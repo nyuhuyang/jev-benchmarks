@@ -100,8 +100,9 @@ dataset:
     kind: massive
     task: intent
     repository: AmazonScience/massive
-    configuration: en-US
-    source_split: test
+    source_split: train
+    data_files:
+    - en-US/test/*.parquet
     locale: en-US
     revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
@@ -109,8 +110,9 @@ dataset:
     kind: massive
     task: intent
     repository: AmazonScience/massive
-    configuration: zh-CN
-    source_split: test
+    source_split: train
+    data_files:
+    - zh-CN/test/*.parquet
     locale: zh-CN
     revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
@@ -118,8 +120,9 @@ dataset:
     kind: massive
     task: intent
     repository: AmazonScience/massive
-    configuration: km-KH
-    source_split: test
+    source_split: train
+    data_files:
+    - km-KH/test/*.parquet
     locale: km-KH
     revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
