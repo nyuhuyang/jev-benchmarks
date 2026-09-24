@@ -241,6 +241,9 @@ Bootstrap failure rules (build inspection):
   starts a new attempt, and the paused attempt stays ineligible. A run marks its attempt `running`
   before dispatch and `active` only after it finishes cleanly. Only `active` attempts are
   eligible for the report, and no Jev attempt is reportable while the ledger holds a pause.
+  Ledger records carry their attempt name, so an attempt that ever received a pausing retention is
+  never reused or reported, even after `pause_cleared`. A complete attempt left `running` by a
+  crash after its last row is finalized to `active` on rerun.
 - Wall latency is measured by the runner around each call for every backend (including prompt
   preparation and local worker IPC); adapters keep model-only time separately. The latency
   reference row is published even when no call succeeded on its first attempt (n = 0, null

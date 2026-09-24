@@ -453,3 +453,9 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - A7I3-F2 medium: pause_cleared never unblocked new runs → FIXED: _attempt_dir blocks cost_paused only while the ledger is still paused; after pause_cleared it starts a new attempt and the paused attempt stays ineligible. cost_exhausted still blocks.
 - A7I3-F3 medium: REJECTED with evidence. v2_report.py:204 groups only repeat_index == 0 rows, so order_rows never includes repeat 1 and a successful repeat 1 cannot complete an order. A regression test (repeat 0 fails on every order call, repeats 1–2 succeed → "permutation run incomplete: 0/8") confirms the behaviour.
 - Tests added; suite passes (coverage 91.49%). Not yet re-inspected.
+
+### A7 build inspection 4 — user-approved, focused on 484dc0c (base 8369186)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-inspect4/claudex-mm5h8585/result.json (cross_provider; base 8369186; head 484dc0c) — REVISE
+- A7I4-F1 high: a crash-left "running" attempt could be reused after pause_cleared → FIXED: ledger records carry the attempt name; paused_attempts() marks every attempt that ever received a pausing retention, and it is never reused (_attempt_dir starts a new one) or reported (_select_attempt skips it).
+- A7I4-F2 medium: a complete attempt left "running" by a crash could never be reported → FIXED: a rerun with no pending work finalizes it to "active" (safe, because _attempt_dir never returns a pause-exposed attempt).
+- Tests added; suite passes (coverage 91.50%). Not yet re-inspected.

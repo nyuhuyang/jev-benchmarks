@@ -989,3 +989,52 @@ def test_order_completeness_uses_repeat_zero_only(
     with (json_path.parent / "flip.csv").open() as handle:
         jev = [row for row in csv.DictReader(handle) if row["backend"] == "jev_openrouter"]
     assert [row["unavailable"] for row in jev] == ["permutation run incomplete: 0/8"]
+
+
+def test_attempt_exposed_to_a_pause_is_never_reused_or_reported(tmp_path: Path) -> None:
+    from jev_benchmarks.v2_runner import _attempt_dir
+
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    root = cfg.output_dir / "jev_openrouter"
+    attempt = root / "attempt-1"
+    write_attempt(
+        attempt / "predictions.jsonl",
+        [
+            report_prediction("jev_openrouter", row, repeat).to_dict()
+            for row in manifest
+            for repeat in range(3)
+        ],
+    )
+    # Crash left it "running"; the ledger tags the pausing retention with attempt-1.
+    (attempt / "status.json").write_text('{"state":"running"}', encoding="utf-8")
+    (root / "budget-ledger.jsonl").write_text(
+        '{"event":"reserved","txn":"a","amount":0.1,"attempt":"attempt-1"}\n'
+        '{"event":"retained","txn":"a","pause":true,"attempt":"attempt-1"}\n'
+        '{"event":"pause_cleared"}\n',
+        encoding="utf-8",
+    )
+    assert _attempt_dir(root).name == "attempt-2"
+    (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "jev_openrouter", manifest)
+
+
+def test_complete_running_attempt_is_finalized_on_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+    attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
+    write_jsonl(
+        attempt / "predictions.jsonl",
+        [report_prediction("qwen_logit", row).to_dict() for row in manifest if row.split == "test"],
+    )
+    (attempt / "status.json").write_text('{"state":"running"}', encoding="utf-8")
+    run_v2_backend(cfg, "qwen_logit", split="test", backend_factory=lambda *_: None)
+    status = json.loads((attempt / "status.json").read_text())
+    assert status == {"state": "active", "snapshot": "snapshot-1"}

@@ -113,12 +113,18 @@ def _select_attempt(
         ledger = config.output_dir / backend / "budget-ledger.jsonl"
         if ledger.exists() and ledger_paused(ledger):
             raise RuntimeError("Jev cost pause pending operator review; no attempt is reportable")
+    from .adapters.jev_openrouter import paused_attempts
+
+    ledger_path = config.output_dir / backend / "budget-ledger.jsonl"
+    exposed = paused_attempts(ledger_path) if ledger_path.exists() else set()
     attempts = sorted(
         (config.output_dir / backend).glob("attempt-*"),
         key=lambda path: int(path.name.split("-")[-1]),
         reverse=True,
     )
     for path in attempts:
+        if path.name in exposed:  # a paused attempt stays ineligible even after pause_cleared
+            continue
         file = path / "predictions.jsonl"
         data = file.read_bytes() if file.exists() else b""
         rows = [

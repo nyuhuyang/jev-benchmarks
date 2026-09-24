@@ -86,6 +86,15 @@ def ledger_paused(path: Path) -> bool:
     return state
 
 
+def paused_attempts(path: Path) -> set[str]:
+    """Attempts that received a pausing retention; they are never reportable, even if cleared."""
+    return {
+        str(row["attempt"])
+        for row in read_jsonl(path)
+        if row["event"] == "retained" and row.get("pause") and row.get("attempt")
+    }
+
+
 class BudgetLedger:
     """Durable, single-dispatcher record of every Jev reservation and its closure.
 
@@ -94,9 +103,12 @@ class BudgetLedger:
     crash or an unbilled error can only over-count spend.
     """
 
-    def __init__(self, path: Path, *, secret: str | None = None) -> None:
+    def __init__(
+        self, path: Path, *, secret: str | None = None, attempt: str | None = None
+    ) -> None:
         self.path = path
         self.secret = secret
+        self.attempt = attempt  # tags every record, so a pause stays bound to its attempt
         path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = path.with_name("budget.lock").open("a")
         try:
@@ -139,7 +151,8 @@ class BudgetLedger:
         return ledger_paused(self.path)
 
     def append(self, row: dict[str, Any]) -> None:
-        append_jsonl(self.path, row, secret=self.secret)
+        tagged = {**row, "attempt": self.attempt} if self.attempt else row
+        append_jsonl(self.path, tagged, secret=self.secret)
 
     def close(self) -> None:
         self._lock_file.close()

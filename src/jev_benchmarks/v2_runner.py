@@ -96,7 +96,9 @@ def _make_v2_backend(config: BenchmarkConfig, name: str, attempts_dir: Path) -> 
 
         secret = os.environ.get("OPENROUTER_API_KEY")
         # One experiment-level ledger across attempts; holds the single-dispatcher lock.
-        ledger = BudgetLedger(attempts_dir.parent / "budget-ledger.jsonl", secret=secret)
+        ledger = BudgetLedger(
+            attempts_dir.parent / "budget-ledger.jsonl", secret=secret, attempt=attempts_dir.name
+        )
         budget = Budget(
             maximum=float(model["max_cost_usd"]),
             price_per_token=float(model["prompt_price_per_token"]),
@@ -219,7 +221,7 @@ class LocalProcessBackend:
 
 
 def _attempt_dir(root: Path) -> Path:
-    from .adapters.jev_openrouter import ledger_paused
+    from .adapters.jev_openrouter import ledger_paused, paused_attempts
 
     existing = sorted((int(path.name.split("-")[-1]), path) for path in root.glob("attempt-*"))
     ledger = root / "budget-ledger.jsonl"
@@ -233,13 +235,18 @@ def _attempt_dir(root: Path) -> Path:
                 state == "cost_paused" and (not ledger.exists() or ledger_paused(ledger))
             ):
                 raise RuntimeError("cost dispatch stopped pending operator review")
+    exposed = paused_attempts(ledger) if ledger.exists() else set()
+    if exposed and ledger_paused(ledger):
+        raise RuntimeError("cost dispatch stopped pending operator review")
     if existing:
         latest = existing[-1][1]
         status = latest / "status.json"
-        if not status.exists() or json.loads(status.read_text(encoding="utf-8"))["state"] in {
-            "active",
-            "running",
-        }:
+        # An attempt exposed to a pausing retention is never reused, even after pause_cleared
+        # (a crash may have left it "running"); the next run starts a new attempt.
+        if latest.name not in exposed and (
+            not status.exists()
+            or json.loads(status.read_text(encoding="utf-8"))["state"] in {"active", "running"}
+        ):
             return latest
     return root / f"attempt-{existing[-1][0] + 1 if existing else 1}"
 
@@ -323,6 +330,22 @@ def _dispatch(
         if (row.split, row.example_id, row.permutation_id, row.letter_mode, repeat) not in done
     ]
     if not pending:
+        # A crash after the last row can leave a complete attempt "running"; finalize it here.
+        # (_attempt_dir never returns an attempt exposed to a pause, so this is safe.)
+        if (
+            status_path.exists()
+            and json.loads(status_path.read_text(encoding="utf-8"))["state"] == "running"
+        ):
+            resolved = [
+                row["model_resolved"]
+                for row in read_jsonl(output)
+                if row.get("model_resolved") not in (None, "unknown")
+            ]
+            write_json(
+                status_path,
+                {"state": "active", "snapshot": resolved[0] if resolved else None},
+                secret=os.environ.get("OPENROUTER_API_KEY"),
+            )
         return output
     # Mark the attempt as running before any dispatch: a crash leaves it ineligible for reports
     # (only "active" is), so a stale "active" from an earlier split can never hide a pause.
