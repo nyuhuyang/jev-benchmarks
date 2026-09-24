@@ -291,7 +291,11 @@ class JevOpenRouterBackend:
                     }
                 )
                 if cost is None and status < 400:
-                    raise RuntimeError("response missing a valid usage.cost; dispatch paused")
+                    served = response.get("model") if isinstance(response, dict) else None
+                    raise JevResponseError(
+                        "response missing a valid usage.cost; dispatch paused",
+                        str(served) if served else MISSING_MODEL,
+                    )
                 if status == 429 or 500 <= status <= 599:
                     if attempt + 1 == self.attempts:
                         raise RuntimeError(f"OpenRouter HTTP {status} after retries")

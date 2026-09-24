@@ -216,6 +216,44 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
 4. Add a row to `study/docs/PLANS.md`.
 
+### Amendment 7 — pre-freeze CCFA research gate (user-requested 2026-09-24)
+
+The user enabled the CCFA research workflow. `ccf-paper-reviewer` (scientific mode, `generic-7`) reviewed `docs/PROTOCOL-v2.md` at `35568e0` before the freeze: `ccfa-review-reports/protocol-v2-scientific-review.md`, 7 findings C001–C007, stance borderline 6/10, confidence 4, "freezable after C001–C002". That review is the host's CCFA specialist assessment. It is separate from the claudex Codex plan review and code inspection.
+
+**CCFA acceptance criteria (copied so both review directions judge against the same text):**
+- **Evidence discipline (`ccf-common` privacy-and-evidence):** no fabricated results, citations, significance or ranks. Separate "known from user material", "known from public source", "inferred" and "unknown". Unsupported claims are weakened, removed, or backed by evidence, never rhetorically strengthened.
+- **Claim–evidence mapping (`ccf-paper-reviewer` universal rubric):** every central claim in the report and Rmd maps to its inspected support (strong / adequate / weak / absent). A claim whose support is weak or absent is narrowed before publication.
+- **Estimand clarity:** each headline or confirmatory number names its sampling distribution, condition (A/B) and dataset set.
+- **Reproducibility:** every number that supports a claim traces to a frozen, hashed artifact.
+
+**Protocol changes (from C001–C007):**
+- **C001:** declare the class-balanced estimand. Coverage means "share of balanced test items automated", not deployment traffic. `prepare` records each candidate pool's class prevalence in `manifest-summary.json`, and public-result comparisons note their sampling distribution.
+- **C002:** the headline question's like-for-like reading is **B-vs-B (Brier, coverage) plus accuracy**. Under B, Jev's temperature uses the same 200 labels. A-vs-A is a supplement, and the report and Rmd show B-vs-B first.
+- **C003:** macro-F1 is secondary and descriptive; the confirmatory outcomes are accuracy and Brier.
+- **C004:** stale text is removed (latency scaling, the typed-checkpoint limitation, GLiNER as a v2 contender), and Amendment 5 now precedes 6 in PROTOCOL.
+- **C005:** per-dataset differences are reported beside every pooled effect, with the cross-K pooling stated.
+- **C006:** sampling is balanced within class availability. `manifest-summary.json` records per-split class counts.
+- **C007:** the aggregate probe record is committed as `results/reports/probe-v2.json`. The freeze record carries `probe_results_sha256`, and `verify_frozen` checks it.
+
+**Also in this change (build inspection A6-4, Codex):**
+- **R1:** a 2xx response with no valid cost carries its serving snapshot; cost-paused or exhausted attempts are never reported.
+- **R2:** order-effect analyses require the complete frozen permutation run, otherwise they are marked unavailable.
+- **R3:** all-failure local attempts still produce an n=0 latency reference row.
+
+**CCFA skills by phase:**
+- P5 report: the host uses `ccf-experiment-designer` (result-table evidence schema) and runs `ccf-integrity-auditor` on every reported number against the frozen CSVs before release.
+- P6 Rmd: the host runs `ccf-paper-reviewer` (scientific) on the Rmd before it is called final.
+- Preflights `ccf-humanization` → `ccf-common` stay with the host.
+
+**Tasks (Amendment 7):**
+- [x] Host CCFA scientific review of PROTOCOL-v2 (`ccfa-review-reports/protocol-v2-scientific-review.md`, validator PASS).
+- [x] Protocol edits C001–C007; `manifest-summary.json` pool prevalence and class counts; probe record committed and hash-checked by `verify_frozen`; tests.
+- [x] Inspection A6-4 fixes R1–R3 with regression tests.
+- [ ] Fresh Codex plan review of Amendment 7 and the revised protocol.
+- [ ] Fresh Codex code inspection of the Amendment 7 changes.
+- [ ] Freeze: `prepare`, fill `v2-freeze.json` (including `probe_results_sha256`), tag `v2-preregistered`.
+- [ ] P5 `ccf-integrity-auditor` pass on the report, and P6 `ccf-paper-reviewer` pass on the Rmd.
+
 ### Amendment 6 — scope cut and headline question (user-approved 2026-09-24)
 
 Source: the approved assessment's value analysis. Public work already covers zero-shot accuracy rankings, hosted-vs-local latency and GLiNER. The study's distinct value is one question:

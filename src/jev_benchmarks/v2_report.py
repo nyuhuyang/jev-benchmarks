@@ -126,10 +126,12 @@ def _select_attempt(
             ):
                 raise ValueError(f"{backend} prediction contract mismatch: {row.example_id}")
         status = path / "status.json"
-        if (
-            status.exists()
-            and json.loads(status.read_text(encoding="utf-8"))["state"] == "snapshot_changed"
-        ):
+        if status.exists() and json.loads(status.read_text(encoding="utf-8"))["state"] in {
+            "snapshot_changed",
+            "cost_paused",
+            "cost_exhausted",
+        }:
+            # A paused or exhausted attempt needs operator resolution before it can be reported.
             continue
         latest: dict[tuple[str, str, str, str, int], Prediction] = {}
         dispatches: dict[tuple[str, str, str, str, int], int] = defaultdict(int)
@@ -281,7 +283,12 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             done = [row for row in test if row.error is None]
             first_try = [row for row in done if (row.dispatch_attempts or 1) == 1]
             # Every dispatched item counts toward the retry share, including final failures.
-            dispatched = [row for row in test if row.error is None or row.dispatch_attempts]
+            dispatched = [
+                row
+                for row in test
+                # Local backends dispatch every item once; Jev failures carry their attempt count.
+                if row.error is None or row.dispatch_attempts or backend != "jev_openrouter"
+            ]
             if not splits.get("latency") and backend not in FEWSHOT_BACKENDS and dispatched:
                 # Amendment 6 reference: first-attempt successes on the test split only.
                 model_times = [
@@ -319,6 +326,28 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 )
             permutation = splits.get("permutation", [])
             order_rows = [row for row in permutation if row.permutation_id.startswith("order-")]
+            # Order effects need the complete frozen permutation run; otherwise unavailable.
+            expected_orders = {
+                (row.example_id, row.permutation_id, row.letter_mode)
+                for row in manifest
+                if row.split == "permutation"
+                and row.dataset == dataset
+                and row.permutation_id.startswith("order-")
+                and (row.letter_mode != "positional" or backend == "qwen_logit")
+            }
+            observed_orders = {
+                (row.example_id, row.permutation_id, row.letter_mode) for row in order_rows
+            }
+            if backend not in FEWSHOT_BACKENDS and not expected_orders <= observed_orders:
+                flip_rows.append(
+                    {
+                        "backend": backend,
+                        "dataset": dataset,
+                        "unavailable": "permutation run incomplete: "
+                        f"{len(expected_orders & observed_orders)}/{len(expected_orders)}",
+                    }
+                )
+                order_rows = []
             if permutation:
                 head_default = [
                     row

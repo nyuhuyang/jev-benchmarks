@@ -400,3 +400,14 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R3 medium: the local latency boundary excluded prompt preparation and IPC → FIXED: the runner times every call at its own boundary; model-only time stays separate.
 - R4 medium: the latency row was dropped when every Jev call retried → FIXED: the row is kept with n=0, null quantiles and the retry share.
 - Rules added to PROTOCOL; regression tests added. Not yet re-inspected.
+
+### A6 build inspection 4 — user-approved (claudex-loop 2.2.1; CCFA research workflow enabled by user)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-inspect4/claudex-uclpyrs_/result.json (cross_provider; base ff5aeb9; head 35568e0) — REVISE
+- R1 high: a 2xx without valid cost lost its model ID; cost_paused attempts could be reported → FIXED.
+- R2 medium: order effects reported from absent or partial permutation runs → FIXED: marked unavailable unless complete.
+- R3 medium: all-failure local attempts had no latency row → FIXED.
+
+## Amendment 7 (2026-09-24) — pre-freeze CCFA research gate
+- User enabled the CCFA research workflow ("继续Codex审阅，启用ccfa 论文审阅"). The host ran ccf-humanization → ccf-common → ccf-paper-reviewer (scientific, generic-7) on PROTOCOL-v2 @35568e0: ccfa-review-reports/protocol-v2-scientific-review.md (validator PASS; 7 findings; borderline 6/10; confidence 4).
+- Per claudex-loop research-skills: the Codex review is not a substitute for the CCFA specialist; CCFA criteria are copied into the plan's Amendment 7 acceptance criteria.
+- Reviewer: fresh Codex plan review (runner 2.2.1), CLI default model; fallback same-provider-on-unavailable.

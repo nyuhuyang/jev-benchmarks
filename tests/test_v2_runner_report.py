@@ -161,6 +161,16 @@ def test_frozen_hash_contract_and_key_scrub(
         lambda *args, **kwargs: SimpleNamespace(stdout=freeze.read_bytes()),
     )
     verify_frozen(cfg, manifest)
+    # The committed probe record is bound by hash when the freeze record names it.
+    probe = tmp_path / "results" / "reports" / "probe-v2.json"
+    probe.parent.mkdir(parents=True)
+    probe.write_text("{}", encoding="utf-8")
+    record = json.loads(freeze.read_text())
+    freeze.write_text(json.dumps({**record, "probe_results_sha256": sha256_file(probe)}))
+    verify_frozen(cfg, manifest)
+    probe.write_text('{"changed": true}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="probe record hash"):
+        verify_frozen(cfg, manifest)
     freeze.write_text(
         json.dumps({"config_sha256": "bad", "manifest_sha256": "bad"}), encoding="utf-8"
     )

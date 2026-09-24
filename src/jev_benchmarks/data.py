@@ -5,7 +5,7 @@ import json
 import random
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -474,6 +474,21 @@ def load_v2_examples(
             "source_split": spec.get("source_split", "train"),
             "counts": {
                 split: sum(row.split == split for row in selected)
+                for split in ("pilot", "calibration", "test")
+            },
+            # Samples are class-balanced within availability; the pool prevalence is the
+            # natural base rate that balanced estimates do not represent (protocol C001/C006).
+            "pool_class_prevalence": {
+                str(label): count / len(candidates)
+                for label, count in sorted(Counter(row.target_index for row in candidates).items())
+            },
+            "class_counts": {
+                split: {
+                    str(label): count
+                    for label, count in sorted(
+                        Counter(row.target_index for row in selected if row.split == split).items()
+                    )
+                }
                 for split in ("pilot", "calibration", "test")
             },
         }

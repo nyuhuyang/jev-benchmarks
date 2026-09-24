@@ -35,6 +35,10 @@ def verify_frozen(config: BenchmarkConfig, manifest: Path) -> None:
     protocol_path = config.path.parent.parent / frozen["protocol_file"]
     if record["protocol_sha256"] != sha256_file(protocol_path):
         raise RuntimeError("protocol hash mismatch with preregistered record")
+    probe = record.get("probe_results_sha256")
+    probe_path = config.path.parent.parent / "results" / "reports" / "probe-v2.json"
+    if probe is not None and probe != sha256_file(probe_path):
+        raise RuntimeError("probe record hash mismatch with preregistered record")
     tag = str(frozen["tag"])
     if tag.startswith("TODO-PIN"):
         raise RuntimeError("preregistration tag needs TODO-PIN resolution")

@@ -24,7 +24,8 @@ The immutable model and dataset revisions and the local snapshot paths are in `c
   UltraFeedback `40b4365`.
 
 The pinned synthetic probe ran at tag `v2-probe` (commit `8720bb5`) on synthetic strings only. Its
-results are in `results/runs/jev-laya-v2/probe-results.json`, which is not committed:
+aggregate record (shapes, lengths, counts and hashes; no dataset text) is committed as
+`results/reports/probe-v2.json`, and its sha256 is part of the freeze record:
 - **Laya output shapes:** noul returns a full two-way vector and score a full five-level
   distribution, so condition B is available for every Laya track. Choice returns the full label
   vector. All tracks ran on MPS.
@@ -60,7 +61,16 @@ descriptions. The full label universe is offered on every item. BTZSC out-of-sco
 unique positive hypothesis are excluded. Public benchmark contamination is possible.
 
 Pilot 30, calibration 200 and test 300 items are sampled per dataset, except MASSIVE test 100 per
-locale, with seed 20260923 and class-balanced selection. The three sets are disjoint. Single-source
+locale, with seed 20260923 and class-balanced selection **within class availability** (a class
+with too few candidates, e.g. DAIR Emotion *surprise* with 66, is exhausted and the remaining
+slots go to other classes; the per-split class counts are recorded in `manifest-summary.json`).
+
+**Estimand.** Every reported metric describes the class-balanced sample distribution, not the
+natural base rate. Brier, ECE, temperature fitting and coverage at the 5% error budget all depend
+on class prevalence, and the natural rates differ sharply (for example 13.4% spam in SMS Spam and
+8.0% toxic in Civil Comments). Coverage therefore means "share of balanced test items automated",
+not deployment traffic. The candidate-pool prevalence of each dataset is recorded in
+`manifest-summary.json`, and comparisons with public results note their sampling distribution. The three sets are disjoint. Single-source
 BTZSC and SMS Spam splits are carved into those sets. NFKC/lowercase/whitespace-collapsed/
 punctuation-stripped text hashes group duplicates before selection; MASSIVE parallel utterances
 share a group by cross-locale ID. Merged-group and length-exclusion counts are reported. Any item
@@ -95,7 +105,8 @@ Jev calls are serial. It is deployment-specific: hosted latency includes an Open
 
 ## Outcomes and failure policy
 
-Primary discrimination and probability outcomes are accuracy, macro-F1 and Brier. Macro-F1
+The confirmatory outcomes are accuracy and Brier. Macro-F1 is a secondary, descriptive outcome
+(no inference). Macro-F1
 averages only labels in targets union predictions on the evaluated sample, recalculated inside
 every bootstrap resample; a predicted class absent from targets has F1 zero. Banking77 and MASSIVE
 macro-F1 is exploratory. Per-class support is reported. Failed calls remain in every shared-item
@@ -117,7 +128,9 @@ Each contrast has one accuracy test (argmax is unchanged by temperature), Brier 
 Brier B-versus-B. The resulting `k` is 9 or 3, as frozen above. Mixed-policy comparisons are
 descriptive.
 
-Each contrast is the equal-weight average of its frozen dataset effects. A dataset-stratified
+Each contrast is the equal-weight average of its frozen dataset effects. Multiclass Brier ranges
+with the number of classes (here K = 4, 6, 2, 2), so the pooled Brier effect is an equal-weight
+average across different K. Per-dataset differences are reported beside every pooled effect. A dataset-stratified
 paired bootstrap uses 2,000 resamples. Each resample redraws calibration and test items and refits
 both B temperatures. Unadjusted 95% percentile intervals are reported. Two-sided bootstrap
 `p = 2 min(P(delta* <= 0), P(delta* >= 0))`, floored at 1/2000. Holm step-down runs across the
@@ -127,55 +140,12 @@ decisions. Other comparisons are descriptive, with unadjusted intervals and no w
 ## Exploratory analyses and limitations
 
 Laya as-shipped `head_max_len` on K > 20, mean-of-three Jev, rounding parity, Banking77 and MASSIVE
-macro-F1, multilingual slices, permutation modes, latency scaling and mixed-policy contrasts are
-exploratory or descriptive. Limitations include public-data contamination, smaller rare-class
-supports, length-selection bias, hosted-network versus local-hardware latency, OpenRouter versus a
-direct TypeSafe call, and the out-of-domain typed-decision checkpoint. Process environment
+macro-F1, multilingual slices, AG News permutation modes and mixed-policy contrasts are
+exploratory or descriptive. Limitations include public-data contamination, the class-balanced
+estimand (see Data and exclusions), smaller rare-class supports, length-selection bias,
+hosted-network versus local-hardware latency, and OpenRouter versus a direct TypeSafe call. Process environment
 isolation for local backends is not an OS sandbox; inspected package code can still read an
 absolute-path file. No fine-tuning or benchmark-specific prompt tuning is performed; the Jev/Laya/Qwen contrasts are zero-shot. The Amendment 5 few-label arm is supervised on the 200 calibration labels per dataset and is reported as such.
-
-## Amendment 6: scope cut and headline estimands
-
-The headline question is how much of zero-shot Jev's advantage is left when a local model gets the
-same ~200 labels. On identical test items, two paired gaps are reported side by side. Both are
-contender minus Jev, the same sign as C1: a negative accuracy or coverage difference, or a positive
-Brier difference, means Jev leads.
-- the zero-shot gap, Jev vs `qwen_logit`;
-- the few-label gap, Jev vs `qwen_probe`, `tfidf_lr` and `prior`.
-
-The metrics are accuracy, Brier A/B and coverage at 5% error under A/B. The primary set is the 4
-confirmatory datasets; the secondary set is every shared dataset. The coverage bootstrap
-re-selects each side's threshold on the resampled calibration set, and no feasible threshold
-counts as coverage 0. On the primary set, the zero-shot accuracy and Brier rows are the C1
-estimates, carrying the C1 Holm decision. Every other headline row is estimation only, with
-unadjusted intervals and no winner claims.
-
-Removed from v2: the latency suite, `laya_typed` (out of domain), and GLiNER runs. GLiNER remains
-only as the P3.0 anchor, run through the minimal-environment worker with the pilot-v1 model spec
-and the v2 runtime. The `v2-probe` record remains the capability check for the retained
-contenders. Final length exclusions come from `prepare` on the Amendment 6 config.
-
-Few-label thresholds are chosen on out-of-fold predictions and applied to an all-200 refit, so
-realized selective error can drift from 5%; it is reported beside coverage.
-
-Bootstrap failure rules (build inspection):
-- A resampled calibration set with no successful vectors cannot fit T, so that draw uses T = 1
-  (B = A for the draw); failures never drop draws.
-- A score dataset with no successful call takes the vector failure penalties (Brier 2, NLL
-  −log 0.005, coverage 0). Scalar-only handling needs a successful scalar call.
-- A confirmatory test whose estimate is undefined, or whose usable draws are fewer than the frozen
-  2,000, is reported without a Holm rejection.
-- Jev dispatch history is summed across every invocation of a prediction key: earlier failed
-  attempts count in the retry share and exclude the key from the first-attempt latency reference.
-- If the observed calibration set of a contender has no successful vectors, its condition-B
-  contrasts are reported as unavailable (no estimate, no Holm rejection); condition-A results and
-  failure counts are still published.
-- A complete local attempt in which every call failed is scored with the failure penalties, with the
-  pinned checkpoint as provenance; Jev still needs one known snapshot.
-- Wall latency is measured by the runner around each call for every backend (including prompt
-  preparation and local worker IPC); adapters keep model-only time separately. The latency
-  reference row is published even when no call succeeded on its first attempt (n = 0, null
-  quantiles), so the retry share is always reported.
 
 ## Amendment 5: few-label arm, confirmatory set, framing
 
@@ -212,6 +182,55 @@ full noul vectors; otherwise the C1-only family with k = 3 applies.
   outside the permutation and latency suites.
 - The bootstrap refits T but not the classifier, so their intervals understate training variance.
 
+## Amendment 6: scope cut and headline estimands
+
+The headline question is how much of zero-shot Jev's advantage is left when a local model gets the
+same ~200 labels. On identical test items, two paired gaps are reported side by side. Both are
+contender minus Jev, the same sign as C1: a negative accuracy or coverage difference, or a positive
+Brier difference, means Jev leads.
+- the zero-shot gap, Jev vs `qwen_logit`;
+- the few-label gap, Jev vs `qwen_probe`, `tfidf_lr` and `prior`.
+
+**Like-for-like reading.** Under condition B, Jev's temperature is fitted on the same 200
+calibration labels that train the few-label contenders, so **B-vs-B (Brier and coverage) plus
+accuracy** answers the headline question. Accuracy is unchanged by temperature, so A and B coincide
+for it. A-vs-A contrasts raw zero-shot output with supervised output; it is reported as a
+supplement, and the report and Rmd present B-vs-B first.
+
+The metrics are accuracy, Brier A/B and coverage at 5% error under A/B. The primary set is the 4
+confirmatory datasets; the secondary set is every shared dataset. The coverage bootstrap
+re-selects each side's threshold on the resampled calibration set, and no feasible threshold
+counts as coverage 0. On the primary set, the zero-shot accuracy and Brier rows are the C1
+estimates, carrying the C1 Holm decision. Every other headline row is estimation only, with
+unadjusted intervals and no winner claims.
+
+Removed from v2: the latency suite, `laya_typed` (out of domain), and GLiNER runs. GLiNER remains
+only as the P3.0 anchor, run through the minimal-environment worker with the pilot-v1 model spec
+and the v2 runtime. The `v2-probe` record remains the capability check for the retained
+contenders. Final length exclusions come from `prepare` on the Amendment 6 config.
+
+Few-label thresholds are chosen on out-of-fold predictions and applied to an all-200 refit, so
+realized selective error can drift from 5%; it is reported beside coverage.
+
+Bootstrap failure rules (build inspection):
+- A resampled calibration set with no successful vectors cannot fit T, so that draw uses T = 1
+  (B = A for the draw); failures never drop draws.
+- A score dataset with no successful call takes the vector failure penalties (Brier 2, NLL
+  −log 0.005, coverage 0). Scalar-only handling needs a successful scalar call.
+- A confirmatory test whose estimate is undefined, or whose usable draws are fewer than the frozen
+  2,000, is reported without a Holm rejection.
+- Jev dispatch history is summed across every invocation of a prediction key: earlier failed
+  attempts count in the retry share and exclude the key from the first-attempt latency reference.
+- If the observed calibration set of a contender has no successful vectors, its condition-B
+  contrasts are reported as unavailable (no estimate, no Holm rejection); condition-A results and
+  failure counts are still published.
+- A complete local attempt in which every call failed is scored with the failure penalties, with the
+  pinned checkpoint as provenance; Jev still needs one known snapshot.
+- Wall latency is measured by the runner around each call for every backend (including prompt
+  preparation and local worker IPC); adapters keep model-only time separately. The latency
+  reference row is published even when no call succeeded on its first attempt (n = 0, null
+  quantiles), so the retry share is always reported.
+
 ## Deviations from the locked plan
 
 - Jev's prepare-time token bound uses serialized UTF-8 request bytes, a conservative bound where
@@ -220,8 +239,8 @@ full noul vectors; otherwise the C1-only family with k = 3 applies.
   minimal process environment are used instead.
 - Jev dispatch is serial, within the plan's maximum of four concurrent calls. This gives cleaner
   latency measurement and remains within the expected full-run time at about 0.3 seconds per call.
-- The user-requested Amendment 3 adds GLiNER2.5 as a descriptive contender and a pilot-v1 anchor
-  command. Its dataset overflow never changes the primary common pool.
+- The user-requested Amendment 3 added GLiNER2.5 as a descriptive contender and a pilot-v1 anchor
+  command; Amendment 6 later removed the v2 GLiNER runs, so only the anchor remains.
 - Amendment 4 (user-approved): Yelp Review Full was replaced by UltraFeedback helpfulness. The Yelp dataset terms restrict disclosure to third parties, and hosted Jev would receive the review text. UltraFeedback is MIT-licensed. Its 1–5 helpfulness ratings are GPT-4 annotations, not human labels, which is a stated limitation.
 - The Laya package source review (0.3.9 at HF revision `aa8c91c`) passed. The package loads only `rl_agent_config.json`, `model.safetensors` (safetensors), `tokenizer/` and `encoder/`. The repository's `rl_agent_api.py`, `rl_common.py` and `email_utils.py` are not referenced by the package, and no remote code is executed.
 - Group representatives are chosen by a seeded hash of the example ID rather than list position.

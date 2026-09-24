@@ -658,3 +658,66 @@ def test_latency_reference_row_survives_when_every_call_was_retried(
     assert (
         jev["n"] == "0" and jev["latency_p50_seconds"] == "" and float(jev["retried_share"]) == 1.0
     )
+
+
+def test_missing_cost_response_keeps_its_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import JevOpenRouterBackend, JevResponseError
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key")
+    body = {"model": "snap-b", "usage": {}, "answers": {}}
+    jev = JevOpenRouterBackend("m", {}, transport=lambda *_: (200, {}, body))
+    with pytest.raises(JevResponseError) as error:
+        jev.predict("run", replace(report_examples()[0], instructions="Pick?"))
+    assert error.value.model_resolved == "snap-b"
+
+
+def test_cost_paused_attempt_is_not_reported(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
+    write_jsonl(
+        attempt / "predictions.jsonl",
+        [report_prediction("qwen_logit", row).to_dict() for row in manifest],
+    )
+    (attempt / "status.json").write_text('{"state":"cost_paused"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "qwen_logit", manifest)
+
+
+def test_incomplete_permutations_and_all_failure_latency_are_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = report_config(tmp_path)
+    protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
+    protocol.parent.mkdir()
+    protocol.write_text("frozen protocol", encoding="utf-8")
+    base = report_examples()
+    permutations = [
+        replace(row, split="permutation", permutation_id=f"order-{i}")
+        for row in base[4:6]
+        for i in range(4)
+    ]
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in base + permutations])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    for backend, model in cfg.raw["models"].items():
+        rows = [
+            report_prediction(backend, row, repeat)
+            for row in base + (permutations[:3] if backend == "jev_openrouter" else [])
+            for repeat in range(model["repeats"])
+        ]
+        if backend == "qwen_logit":  # every local call failed
+            rows = [
+                replace(row, error="x", probabilities=(), model_resolved="unknown") for row in rows
+            ]
+        write_jsonl(
+            cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
+            [row.to_dict() for row in rows],
+        )
+    json_path, _ = build_v2_report(cfg)
+    with (json_path.parent / "flip.csv").open() as handle:
+        flips = {row["backend"]: row for row in csv.DictReader(handle)}
+    assert flips["jev_openrouter"]["unavailable"] == "permutation run incomplete: 3/8"
+    assert flips["qwen_logit"]["unavailable"] == "permutation run incomplete: 0/8"
+    with (json_path.parent / "latency.csv").open() as handle:
+        qwen = next(row for row in csv.DictReader(handle) if row["backend"] == "qwen_logit")
+    assert qwen["n"] == "0" and qwen["dispatched"] == "4"

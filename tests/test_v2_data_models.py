@@ -210,6 +210,11 @@ def test_v2_loaders_split_groups_and_suites(tmp_path: Path) -> None:
     assert all(len(value) == 1 for value in by_id.values())
     assert cast(dict[str, Any], summary["agnews"])["source_split"] == "test"
     assert cast(dict[str, Any], summary["agnews"])["merged_groups"] == 0
+    agnews = cast(dict[str, Any], summary["agnews"])
+    assert abs(sum(agnews["pool_class_prevalence"].values()) - 1) < 1e-9
+    assert sum(sum(counts.values()) for counts in agnews["class_counts"].values()) == sum(
+        agnews["counts"].values()
+    )
     assert (
         len(
             {
