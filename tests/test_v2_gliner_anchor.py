@@ -138,46 +138,67 @@ def test_anchor_run_uses_existing_manifest_and_fake_backend(tmp_path: Path) -> N
     assert json.loads(output.read_text())["agnews"]["macro_f1_targets_predictions"] == 1.0
 
 
-def test_anchor_drops_credentials_and_goes_offline_before_loading_gliner(
+def test_anchor_runs_gliner_in_the_minimal_env_worker_with_the_v2_runtime(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import os
+    cfg = _anchor_config(tmp_path)
+    (tmp_path / "pinned-cache").mkdir()
+    (tmp_path / "configs" / "v2.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "experiment_id": "v2",
+                "seed": 1,
+                "output_dir": "runs",
+                "dataset": {"datasets": [{"name": "agnews"}], "samples_per_dataset": 1},
+                "models": {"qwen_logit": {}},
+                "metrics": {"ece_bins": 10, "error_budget": 0.05, "bootstrap_resamples": 2},
+                "local_runtime": {"scratch_home": "sandbox", "hf_home": "pinned-cache"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured = {}
 
+    class Worker:
+        def __init__(self, config, name, attempt, *, runtime):
+            captured.update(config=config.path, name=name, runtime=runtime)
+            self.backend = GLiNERV2Backend(
+                "model", "revision", upstream=FakeUpstream((0.8, 0.1, 0.1))
+            )
+
+        def predict(self, experiment_id, example):
+            return self.backend.predict(experiment_id, example)
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr("jev_benchmarks.v2_runner.LocalProcessBackend", Worker)
+    run_anchor(cfg)
+    assert captured["config"] == cfg.path and captured["name"] == "gliner"
+    assert captured["runtime"]["hf_home"] == str(tmp_path / "pinned-cache")
+
+
+def test_worker_builds_gliner_from_the_pilot_v1_model_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+    import sys
+
+    from jev_benchmarks import worker
     from jev_benchmarks.adapters import gliner_v2
 
     cfg = _anchor_config(tmp_path)
-    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key")
-    monkeypatch.setenv("HF_HUB_OFFLINE", "0")
-    seen = {}
+    built = {}
 
-    def isolated(model_id, revision, device):
-        seen["key"] = os.environ.get("OPENROUTER_API_KEY")
-        seen["offline"] = os.environ.get("HF_HUB_OFFLINE")
-        return GLiNERV2Backend(model_id, revision, upstream=FakeUpstream((0.8, 0.1, 0.1)))
+    class Recorder:
+        def __init__(self, model_id, revision, device):
+            built.update(model_id=model_id, revision=revision, device=device)
 
-    monkeypatch.setattr(gliner_v2, "GLiNERV2Backend", isolated)
-    run_anchor(cfg)
-    assert seen == {"key": None, "offline": "1"}
+        def close(self):
+            return None
 
-
-def test_gliner_cannot_enter_confirmatory_family(tmp_path: Path) -> None:
-    path = tmp_path / "config.yaml"
-    raw = {
-        "schema_version": 2,
-        "experiment_id": "v2",
-        "seed": 1,
-        "output_dir": "runs",
-        "dataset": {
-            "datasets": [{"name": "agnews", "instructions": "Question?"}],
-            "split_counts": {
-                "default": {"pilot": 1, "calibration": 1, "test": 1},
-                "massive": {"pilot": 1, "calibration": 1, "test": 1},
-            },
-        },
-        "models": {"gliner": {}},
-        "metrics": {"ece_bins": 10, "error_budget": 0.05, "bootstrap_resamples": 2},
-        "confirmatory_family": {"k": 3, "tests": [{"left": "gliner", "right": "qwen_logit"}]},
-    }
-    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="descriptive only"):
-        load_config(path)
+    monkeypatch.setattr(gliner_v2, "GLiNERV2Backend", Recorder)
+    monkeypatch.setattr(sys, "argv", ["worker", str(cfg.path), "gliner", str(tmp_path / "a")])
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    worker.main()
+    assert built == {"model_id": "model", "revision": "revision", "device": "cpu"}

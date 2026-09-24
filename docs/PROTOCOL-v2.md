@@ -6,8 +6,9 @@ and the manifest hashes under `v2-preregistered` before any benchmark inference.
 
 ## Question and hypotheses
 
-The study compares hosted Jev 1.13 through OpenRouter, local Laya base/multilingual/typed-decision
-checkpoints and local Qwen3-1.7B logit scoring on the same typed decisions. It measures shared
+The study compares hosted Jev 1.13 through OpenRouter, local Laya base and multilingual
+checkpoints, and local Qwen3-1.7B logit scoring on the same typed decisions. Amendment 6 removed
+the typed-decision checkpoint and the v2 GLiNER runs. It measures shared
 capability, not overall intelligence. The confirmatory questions are pairwise differences in
 accuracy and Brier score across a frozen common English dataset set. The null for each contrast
 is a zero mean difference. Direction is not prespecified. GLiNER2.5 is a descriptive contender on
@@ -85,13 +86,13 @@ backends have one after a duplicate pilot check. Primary Jev scores use repeat 0
 secondary. A Jev snapshot change stops the attempt. Confirmatory Jev calibration and test records
 must be from one complete single-snapshot attempt.
 
-The permutation suite uses 100 test items per BTZSC choice dataset, identity plus three fixed
+The permutation suite (Amendment 6: AG News only) uses 100 test items, identity plus three fixed
 orders. Order-only keeps option IDs bound to semantic labels; Qwen also has a separate positional
 letter mode estimating order plus label-token effects. These rates are never compared across
-estimands. The latency suite uses 100 AG News items. Cross-contender latency uses one item, one
-choice question, one call. Scaling is within backend: Jev/Laya 1 versus 10 paraphrased questions
-sharing state, Qwen 1 versus 10 independent prompts. Local latency excludes five warm-ups; Jev
-excludes none. Hosted latency includes an OpenRouter hop.
+estimands. There is no latency suite (Amendment 6). The latency reference is each zero-shot
+contender's per-call wall time and local model time, p50/p95, on first-attempt-successful test
+calls, with the retried share reported. Local backends make one unrecorded warm-up per run and
+Jev calls are serial. It is deployment-specific: hosted latency includes an OpenRouter hop.
 
 ## Outcomes and failure policy
 
@@ -133,6 +134,29 @@ supports, length-selection bias, hosted-network versus local-hardware latency, O
 direct TypeSafe call, and the out-of-domain typed-decision checkpoint. Process environment
 isolation for local backends is not an OS sandbox; inspected package code can still read an
 absolute-path file. No fine-tuning or benchmark-specific prompt tuning is performed; the Jev/Laya/Qwen contrasts are zero-shot. The Amendment 5 few-label arm is supervised on the 200 calibration labels per dataset and is reported as such.
+
+## Amendment 6: scope cut and headline estimands
+
+The headline question is how much of zero-shot Jev's advantage is left when a local model gets the
+same ~200 labels. On identical test items, two paired gaps are reported side by side, both right
+minus left with Jev on the left:
+- the zero-shot gap, Jev vs `qwen_logit`;
+- the few-label gap, Jev vs `qwen_probe`, `tfidf_lr` and `prior`.
+
+The metrics are accuracy, Brier A/B and coverage at 5% error under A/B. The primary set is the 4
+confirmatory datasets; the secondary set is every shared dataset. The coverage bootstrap
+re-selects each side's threshold on the resampled calibration set, and no feasible threshold
+counts as coverage 0. On the primary set, the zero-shot accuracy and Brier rows are the C1
+estimates, carrying the C1 Holm decision. Every other headline row is estimation only, with
+unadjusted intervals and no winner claims.
+
+Removed from v2: the latency suite, `laya_typed` (out of domain), and GLiNER runs. GLiNER remains
+only as the P3.0 anchor, run through the minimal-environment worker with the pilot-v1 model spec
+and the v2 runtime. The `v2-probe` record remains the capability check for the retained
+contenders. Final length exclusions come from `prepare` on the Amendment 6 config.
+
+Few-label thresholds are chosen on out-of-fold predictions and applied to an all-200 refit, so
+realized selective error can drift from 5%; it is reported beside coverage.
 
 ## Amendment 5: few-label arm, confirmatory set, framing
 

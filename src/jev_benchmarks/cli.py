@@ -28,7 +28,6 @@ def _parser() -> argparse.ArgumentParser:
             "jev_openrouter",
             "laya_base",
             "laya_multilingual",
-            "laya_typed",
             "qwen_logit",
         ),
     )

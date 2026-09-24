@@ -264,6 +264,13 @@ def test_high_cardinality_head_default_suite() -> None:
     suite = build_derived_suites([row], 20260923, permutation_count=1, latency_count=0)
     assert sum(item.permutation_id == "head-default" for item in suite) == 1
     assert sum(item.permutation_id.startswith("order-") for item in suite) == 8
+    # Amendment 6: order sensitivity on AG News only, no latency suite.
+    agnews = replace(row, dataset="agnews", labels=("a", "b", "c", "d"))
+    cut = build_derived_suites(
+        [row, agnews], 1, permutation_count=1, latency_count=0, permutation_datasets=["agnews"]
+    )
+    assert {item.dataset for item in cut if item.permutation_id.startswith("order-")} == {"agnews"}
+    assert not [item for item in cut if item.split == "latency"]
 
 
 def test_dataset_types_and_revision_refusal(tmp_path: Path) -> None:
@@ -329,6 +336,11 @@ def test_length_counter_factory_uses_full_request(
     )
     assert set(counters["agnews"]) == {"jev_openrouter", "laya_base", "qwen_logit"}
     assert all(counter(example(0)) > 0 for counter in counters["agnews"].values())
+    # Amendment 6: counters build without a laya_typed model or its tokenizer path.
+    del cfg.raw["length_rule"]["laya_tokenizer_paths"]["typed"]
+    assert make_length_counters(
+        cfg, tokenizer_loader=lambda path: Tokenizer(), laya_to_internal=to_internal
+    )["agnews"]
     cfg.raw["models"]["laya_base"]["head_max_len"]["agnews"] = "TO-FILL-AFTER-PROBE"
     with pytest.raises(ValueError, match="head_max_len"):
         make_length_counters(

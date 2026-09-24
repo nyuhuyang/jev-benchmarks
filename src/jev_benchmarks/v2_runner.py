@@ -120,9 +120,28 @@ def _make_v2_backend(config: BenchmarkConfig, name: str, attempts_dir: Path) -> 
     raise ValueError(f"unknown v2 backend: {name}")
 
 
+def local_runtime(config: BenchmarkConfig) -> dict[str, str]:
+    """``local_runtime`` paths resolved like ``output_dir`` (relative to the repo root)."""
+    resolved = {}
+    for key in ("scratch_home", "hf_home"):
+        value = Path(config.raw["local_runtime"][key])
+        resolved[key] = str(value if value.is_absolute() else config.path.parent.parent / value)
+    if not Path(resolved["hf_home"]).is_dir():
+        raise RuntimeError(f"pinned hf_home is missing: {resolved['hf_home']}")
+    return resolved
+
+
 class LocalProcessBackend:
-    def __init__(self, config: BenchmarkConfig, name: str, attempt: Path) -> None:
-        local = config.raw["local_runtime"]
+    def __init__(
+        self,
+        config: BenchmarkConfig,
+        name: str,
+        attempt: Path,
+        *,
+        runtime: dict[str, str] | None = None,
+    ) -> None:
+        # The worker builds the model from ``config``; ``runtime`` may come from another config.
+        local = runtime or local_runtime(config)
         environment = {
             "PATH": str(Path(sys.executable).parent) + os.pathsep + "/usr/bin:/bin",
             "HOME": str(local["scratch_home"]),

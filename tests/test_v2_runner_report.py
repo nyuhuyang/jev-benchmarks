@@ -298,10 +298,14 @@ def test_cost_pause_status_and_minimal_local_environment(
         return FakeProcess()
 
     monkeypatch.setattr("jev_benchmarks.v2_runner.subprocess.Popen", popen)
+    with pytest.raises(RuntimeError, match="hf_home is missing"):
+        LocalProcessBackend(cfg, "qwen_logit", tmp_path / "attempt")
+    (tmp_path / "cache").mkdir()
     local = LocalProcessBackend(cfg, "qwen_logit", tmp_path / "attempt")
     assert local.predict("e", examples()[0]).backend == "qwen_logit"
     assert set(captured["env"]) == {"PATH", "HOME", "HF_HOME", "HF_HUB_OFFLINE"}
     assert captured["env"]["HF_HUB_OFFLINE"] == "1"
+    assert captured["env"]["HF_HOME"] == str(tmp_path / "cache")
     assert captured["stderr"].name.endswith("worker-qwen_logit.stderr.log")
     local.close()
 

@@ -199,6 +199,8 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
             for row in manifest
             for repeat in range(model["repeats"])
         ]
+        if backend == "jev_openrouter":  # one of four test rows needed a retry
+            predictions[12] = replace(predictions[12], dispatch_attempts=2)
         write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
         (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
     (cfg.output_dir / "prior" / "attempt-1" / "fewshot-metadata.json").write_text(
@@ -212,16 +214,32 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
     assert prior_rows and all(not row["latency_p50_seconds"] for row in prior_rows)
     assert all(row["latency_p50_seconds"] for row in jev_rows if row["condition"] == "A_raw")
     payload = json.loads(json_path.read_text())
-    few = [
-        row
-        for row in payload["descriptive_intervals"]
-        if row["family"] == "descriptive_few_label" and row["right"] == "prior"
-    ]
-    assert {(row["metric"], row["condition"]) for row in few} == {
-        ("accuracy", "A_raw"),
-        ("brier", "A_raw"),
-        ("brier", "B_scaled"),
+    few = [row for row in payload["headline"] if row["right"] == "prior"]
+    assert {(row["set"], row["metric"], row["condition"]) for row in few} == {
+        (set_name, metric, condition)
+        for set_name in ("primary", "secondary")
+        for metric, condition in (
+            ("accuracy", "A_raw"),
+            ("brier", "A_raw"),
+            ("brier", "B_scaled"),
+            ("test_coverage", "A_raw"),
+            ("test_coverage", "B_scaled"),
+        )
     }
+    # Primary-set zero-shot accuracy/Brier rows are the C1 estimates, carrying the Holm decision.
+    confirmatory = {row["id"]: row for row in payload["confirmatory"]}
+    reused = [row for row in payload["headline"] if row.get("reuses")]
+    assert {row["reuses"] for row in reused} == {"C1-accuracy", "C1-brier-A", "C1-brier-B"}
+    for row in reused:
+        source = confirmatory[row["reuses"]]
+        assert row["difference"] == source["difference"]
+        assert row["holm_reject_005"] == source["holm_reject_005"] and row["holm_k"] == 3
+    with (json_path.parent / "latency.csv").open() as handle:
+        latency = list(csv.DictReader(handle))
+    assert {row["backend"] for row in latency} == {"jev_openrouter", "qwen_logit"}
+    assert {row["workload"] for row in latency} == {"test-reference"}
+    jev_latency = next(row for row in latency if row["backend"] == "jev_openrouter")
+    assert float(jev_latency["retried_share"]) == pytest.approx(0.25)
     assert any("not zero-shot" in text for text in payload["limitations"])
     assert payload["public_results"][0]["source"] == "elcronos"
     assert payload["few_label_absent_class_held_out_rows"] == {"prior": {"agnews": 3}}
@@ -369,3 +387,54 @@ def test_report_and_fewshot_refuse_while_a_run_holds_the_lock(
     with _dispatch_lock(few.output_dir / "prior"):
         with pytest.raises(RuntimeError, match="dispatch lock"):
             run_fewshot(few, "prior")
+
+
+def test_coverage_bootstrap_counts_no_feasible_threshold_as_zero() -> None:
+    from jev_benchmarks.v2_metrics import joint_paired_bootstrap
+
+    manifest = report_examples()
+    confident = [report_prediction("a", row) for row in manifest]
+    unsure = [
+        replace(report_prediction("b", row), probabilities=(0.5, 0.5), predicted_index=0)
+        for row in manifest
+    ]
+    split = {
+        "cal": {"agnews": [row for row in confident if row.split == "calibration"]},
+        "test": {"agnews": [row for row in confident if row.split == "test"]},
+    }
+    weak = {
+        "cal": {"agnews": [row for row in unsure if row.split == "calibration"]},
+        "test": {"agnews": [row for row in unsure if row.split == "test"]},
+    }
+    result = joint_paired_bootstrap(
+        split["test"],
+        weak["test"],
+        split["cal"],
+        weak["cal"],
+        metric="test_coverage",
+        condition="A_raw",
+        resamples=20,
+        seed=1,
+    )
+    assert result["difference"] == pytest.approx(-1.0)
+
+
+def test_jev_prediction_records_dispatch_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import JevOpenRouterBackend
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key")
+    replies = [
+        (429, {}, {"error": "limited"}),
+        (
+            200,
+            {},
+            {
+                "model": "snap",
+                "usage": {"cost": 0.001},
+                "answers": {"label": {"probabilities": {"label_000": 0.2, "label_001": 0.8}}},
+            },
+        ),
+    ]
+    jev = JevOpenRouterBackend("m", {}, transport=lambda *_: replies.pop(0), sleep=lambda _: None)
+    row = replace(report_examples()[0], instructions="Pick?")
+    assert jev.predict("run", row).dispatch_attempts == 2

@@ -337,9 +337,10 @@ def build_derived_suites(
     seed: int,
     permutation_count: int = 100,
     latency_count: int = 100,
+    permutation_datasets: Sequence[str] = ("agnews", "emotiondair", "banking77"),
 ) -> list[Example]:
     output: list[Example] = []
-    for dataset in ("agnews", "emotiondair", "banking77"):
+    for dataset in permutation_datasets:
         pool = [row for row in examples if row.split == "test" and row.dataset == dataset]
         for index in _balanced_indices(
             [row.target_index for row in pool], min(permutation_count, len(pool)), seed
@@ -501,6 +502,9 @@ def load_v2_examples(
             config.seed,
             int(config.raw["dataset"].get("permutation_items", 100)),
             int(config.raw["dataset"].get("latency_items", 100)),
+            config.raw["dataset"].get(
+                "permutation_datasets", ("agnews", "emotiondair", "banking77")
+            ),
         )
     )
     return output, summaries
@@ -537,12 +541,14 @@ def make_length_counters(
         tokenizer_loader = load_local_tokenizer
 
     rule = config.raw["length_rule"]
-    tokenizer_paths = {
-        "qwen_logit": rule["qwen_tokenizer_path"],
-        "laya_base": rule["laya_tokenizer_paths"]["base"],
-        "laya_multilingual": rule["laya_tokenizer_paths"]["multilingual"],
-        "laya_typed": rule["laya_tokenizer_paths"]["typed"],
-    }
+    tokenizer_paths = {"qwen_logit": rule["qwen_tokenizer_path"]}
+    for backend, key in (
+        ("laya_base", "base"),
+        ("laya_multilingual", "multilingual"),
+        ("laya_typed", "typed"),
+    ):
+        if backend in config.raw["models"]:  # only configured Laya tracks (Amendment 6)
+            tokenizer_paths[backend] = rule["laya_tokenizer_paths"][key]
     if "gliner" in config.raw["models"]:
         tokenizer_paths["gliner"] = rule["gliner_tokenizer_path"]
     if any(str(value).startswith("TODO-PIN") for value in tokenizer_paths.values()):

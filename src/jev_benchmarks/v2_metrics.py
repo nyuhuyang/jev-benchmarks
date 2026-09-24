@@ -472,7 +472,11 @@ def joint_paired_bootstrap(
     right_condition: str | None = None,
     resamples: int = 2000,
     seed: int = 20260923,
+    error_budget: float = 0.05,
 ) -> dict[str, float]:
+    """Dataset-stratified paired bootstrap of ``score(right) - score(left)``, averaged over
+    datasets. ``test_coverage`` re-selects each side's threshold on the resampled calibration
+    set (after refitting T under B); no feasible threshold means coverage 0."""
     if set(left_test) != set(right_test):
         raise ValueError("dataset sets differ")
     datasets = sorted(left_test)
@@ -495,12 +499,21 @@ def joint_paired_bootstrap(
     ) -> float:
         values = []
         for name in datasets:
-            left, right = sample[name]
-            if left_policy == "B_scaled":
-                left = condition_b(left, fit_temperature(calibrations[name][0]))
-            if right_policy == "B_scaled":
-                right = condition_b(right, fit_temperature(calibrations[name][1]))
-            values.append(float(score_v2(right)[metric] - score_v2(left)[metric]))
+            sides = []
+            for rows, cal, policy in (
+                (sample[name][0], calibrations[name][0], left_policy),
+                (sample[name][1], calibrations[name][1], right_policy),
+            ):
+                if policy == "B_scaled":
+                    temperature = fit_temperature(cal)
+                    rows = condition_b(rows, temperature)
+                    cal = condition_b(cal, temperature) if metric == "test_coverage" else cal
+                if metric == "test_coverage":
+                    threshold = select_threshold(cal, error_budget)
+                    sides.append(float(score_v2(rows, threshold=threshold)["test_coverage"]))
+                else:
+                    sides.append(float(score_v2(rows)[metric]))
+            values.append(sides[1] - sides[0])
         return sum(values) / len(values)
 
     cal_pairs = {name: _paired_rows(left_cal[name], right_cal[name]) for name in datasets}

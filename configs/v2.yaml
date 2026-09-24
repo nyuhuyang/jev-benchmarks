@@ -33,7 +33,9 @@ dataset:
       calibration: 200
       test: 100
   permutation_items: 100
-  latency_items: 100
+  # Amendment 6: order sensitivity on AG News only; latency suite removed.
+  permutation_datasets: [agnews]
+  latency_items: 0
   datasets:
   - name: agnews
     kind: btzsc
@@ -193,25 +195,6 @@ models:
       massive_en: 591
       massive_zh: 591
       massive_km: 591
-  laya_typed:
-    model_id: convaiinnovations/laya
-    revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
-    local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
-    checkpoint: typed-decisions
-    shipped_head_max_len: 256
-    repeats: 1
-    datasets:
-    - agnews
-    - emotiondair
-    - sms_spam
-    - civil_comments
-    - ultrafeedback_helpfulness
-    head_max_len:
-      agnews: 256
-      emotiondair: 256
-      sms_spam: 256
-      civil_comments: 256
-      ultrafeedback_helpfulness: 256
   qwen_logit:
     model_id: Qwen/Qwen3-1.7B
     revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
@@ -247,22 +230,6 @@ models:
       massive_en: two_digit_joint
       massive_zh: two_digit_joint
       massive_km: two_digit_joint
-  gliner:
-    model_id: fastino/gliner2.5-multi-v1
-    revision: 235cf92d6d4318da9bfca0d08975c8fa7250d13b
-    device: cpu
-    batch_size: 1
-    repeats: 1
-    datasets:
-    - agnews
-    - emotiondair
-    - banking77
-    - sms_spam
-    - civil_comments
-    - ultrafeedback_helpfulness
-    - massive_en
-    - massive_zh
-    - massive_km
   # Amendment 5 few-label arm: supervised on the 200 calibration labels; descriptive only.
   qwen_probe:
     model_id: qwen_probe

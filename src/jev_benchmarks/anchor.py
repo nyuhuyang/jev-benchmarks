@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
@@ -65,15 +64,16 @@ def run_anchor(
     if not manifest.exists():
         raise FileNotFoundError("anchor requires the existing pilot-v1 manifest")
     examples = [Example.from_dict(row) for row in read_jsonl(manifest)]
-    model = config.raw["models"]["gliner"]
     if backend_factory is None:
-        # GLiNER runs in this process: drop credentials and force the pinned offline cache first.
-        for name in ("OPENROUTER_API_KEY", "TYPESAFE_API_KEY"):
-            os.environ.pop(name, None)
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        from .adapters.gliner_v2 import GLiNERV2Backend
+        from .config import load_config
+        from .v2_runner import LocalProcessBackend, local_runtime
 
-        backend = GLiNERV2Backend(model["model_id"], model["revision"], model["device"])
+        # GLiNER is built from the frozen pilot-v1 model spec, inside the minimal-environment
+        # worker whose runtime (pinned HF_HOME, offline, no credentials) comes from v2.yaml.
+        runtime = local_runtime(load_config(config.path.parent / "v2.yaml"))
+        backend = LocalProcessBackend(
+            config, "gliner", config.output_dir / "anchor-worker", runtime=runtime
+        )
     else:
         backend = backend_factory(config)
     rows: list[Prediction] = []

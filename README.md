@@ -131,9 +131,16 @@ Then run named splits and backends:
 uv run jev-bench run --config configs/v2.yaml --backend jev_openrouter --split pilot
 uv run jev-bench run --config configs/v2.yaml --backend laya_base --split calibration
 uv run jev-bench run --config configs/v2.yaml --backend qwen_logit --split test
-uv run jev-bench run --config configs/v2.yaml --backend gliner --split test
+uv run jev-bench run --config configs/v2.yaml --backend qwen_logit --split permutation
+uv run jev-bench fewshot --config configs/v2.yaml --backend qwen_probe
+uv run jev-bench fewshot --config configs/v2.yaml --backend tfidf_lr
+uv run jev-bench fewshot --config configs/v2.yaml --backend prior
 uv run jev-bench report --config configs/v2.yaml
 ```
+
+GLiNER runs only as the anchor above, not as a v2 backend. The `fewshot` contenders are trained on
+the 200 calibration labels per dataset (cross-fitted) and are not zero-shot. There is no latency
+split; the report gives a test-split latency reference.
 
 The v2 runner refuses a missing or hash-mismatched manifest, uses a separate attempt namespace for
 each snapshot run, and runs local backends with a minimal offline process environment. Reports use

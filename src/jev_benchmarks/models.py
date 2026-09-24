@@ -69,6 +69,7 @@ class Prediction:
     attempt_id: int | None = None
     confidence_reported: float | None = None
     head_max_len_used: int | None = None
+    dispatch_attempts: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         row = asdict(self)

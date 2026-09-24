@@ -180,7 +180,8 @@ def test_probe_static_and_synthetic_are_dataset_text_free(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(probe, "_probe_tagged", lambda path: None)
+    tags = []
+    monkeypatch.setattr(probe, "_probe_tagged", lambda path, tag: tags.append(tag))
     monkeypatch.setattr(probe, "_laya_source_audit", lambda: {"manual_review_required": True})
     monkeypatch.setattr(probe, "load_config", lambda path: cfg)
 
@@ -206,6 +207,7 @@ def test_probe_static_and_synthetic_are_dataset_text_free(
         SimpleNamespace(AutoTokenizer=SimpleNamespace(from_pretrained=lambda *a, **k: Tokenizer())),
     )
     output = probe.run_probe(probe_path, static_only=True)
+    assert tags == ["v2-probe", "v2-probe"]  # default when the probe config names no tag
     result = json.loads(output.read_text())
     assert result["datasets"]["agnews"]["qwen"]["mode"] == "letter"
     assert result["datasets"]["agnews"]["laya_head_max_len"]["laya_base"] > 0
@@ -264,7 +266,7 @@ def test_probe_revision_guard_and_source_audit(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(probe, "_probe_tagged", lambda path: None)
+    monkeypatch.setattr(probe, "_probe_tagged", lambda *args: None)
     monkeypatch.setattr(probe, "load_config", lambda path: cfg)
     with pytest.raises(ValueError, match="revisions differ"):
         probe.run_probe(path)

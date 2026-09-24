@@ -32,6 +32,14 @@ from .v2_metrics import (
 )
 from .v2_runner import _dispatch_lock, prediction_key, verify_frozen
 
+HEADLINE_METRICS = (
+    ("accuracy", "A_raw"),
+    ("brier", "A_raw"),
+    ("brier", "B_scaled"),
+    ("test_coverage", "A_raw"),
+    ("test_coverage", "B_scaled"),
+)
+
 
 def _gliner_exclusions(config: BenchmarkConfig) -> list[str]:
     path = config.output_dir / "manifest-summary.json"
@@ -247,6 +255,36 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                             else None,
                         }
                     )
+            done = [row for row in test if row.error is None]
+            first_try = [row for row in done if (row.dispatch_attempts or 1) == 1]
+            if not splits.get("latency") and backend not in FEWSHOT_BACKENDS and first_try:
+                # Amendment 6 reference: first-attempt successes on the test split only.
+                model_times = [
+                    row.model_latency_seconds
+                    for row in first_try
+                    if row.model_latency_seconds is not None
+                ]
+                latency_rows.append(
+                    {
+                        "backend": backend,
+                        "dataset": dataset,
+                        "workload": "test-reference",
+                        "n": len(first_try),
+                        "retried_share": (len(done) - len(first_try)) / len(done),
+                        "latency_p50_seconds": float(
+                            np.quantile([row.latency_seconds for row in first_try], 0.5)
+                        ),
+                        "latency_p95_seconds": float(
+                            np.quantile([row.latency_seconds for row in first_try], 0.95)
+                        ),
+                        "model_p50_seconds": float(np.quantile(model_times, 0.5))
+                        if model_times
+                        else None,
+                        "model_p95_seconds": float(np.quantile(model_times, 0.95))
+                        if model_times
+                        else None,
+                    }
+                )
             permutation = splits.get("permutation", [])
             order_rows = [row for row in permutation if row.permutation_id.startswith("order-")]
             if permutation:
@@ -415,38 +453,59 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                     **result,
                 }
             )
-    for few in sorted(FEWSHOT_BACKENDS & set(by_backend)):
-        if "jev_openrouter" not in by_backend:
+    # Amendment 6 headline: Jev's zero-shot gap to Qwen and its gap to each few-label contender,
+    # side by side on identical items. Estimation only; primary-set zero-shot rows are C1.
+    budget = float(config.raw["metrics"]["error_budget"])
+    c1 = {
+        (row["metric"], row["condition"]): row
+        for row in confirmatory_rows
+        if row["left"] == "jev_openrouter" and row["right"] == "qwen_logit"
+    }
+    primary = list(family["tests"][0]["datasets"])
+    headline: list[dict[str, Any]] = []
+    jev = by_backend.get("jev_openrouter", {})
+    for right in ["qwen_logit", *sorted(FEWSHOT_BACKENDS & set(by_backend))]:
+        if not jev or right not in by_backend:
             continue
-        jev = by_backend["jev_openrouter"]
-        common = sorted(set(jev) & set(by_backend[few]))
-        vectors = vector_datasets(jev, by_backend[few], common)
-        for metric, condition in (("accuracy", "A_raw"), ("brier", "A_raw"), ("brier", "B_scaled")):
-            shared = common if metric == "accuracy" else vectors
-            if not shared:
-                continue
-            result = joint_paired_bootstrap(
-                {name: by_backend["jev_openrouter"][name]["test"] for name in shared},
-                {name: by_backend[few][name]["test"] for name in shared},
-                {name: by_backend["jev_openrouter"][name]["calibration"] for name in shared},
-                {name: by_backend[few][name]["calibration"] for name in shared},
-                metric=metric,
-                condition=condition,
-                resamples=resamples,
-                seed=config.seed,
-            )
-            pairwise.append(
-                {
-                    "id": f"jev_openrouter-vs-{few}-{metric}-{condition}",
+        common = sorted(set(jev) & set(by_backend[right]))
+        vectors = vector_datasets(jev, by_backend[right], common)
+        gap = "zero_shot" if right == "qwen_logit" else "few_label"
+        for set_name, names in (
+            ("primary", [name for name in primary if name in common]),
+            ("secondary", common),
+        ):
+            for metric, condition in HEADLINE_METRICS:
+                shared = names if metric == "accuracy" else [n for n in names if n in vectors]
+                if not shared:
+                    continue
+                base = {
                     "left": "jev_openrouter",
-                    "right": few,
+                    "right": right,
                     "datasets": shared,
                     "metric": metric,
                     "condition": condition,
-                    "family": "descriptive_few_label",
-                    **result,
+                    "family": "headline_estimation",
+                    "set": set_name,
+                    "gap": gap,
                 }
-            )
+                reused = c1.get((metric, condition))
+                if gap == "zero_shot" and set_name == "primary" and reused and shared == primary:
+                    headline.append({**reused, **base, "reuses": reused["id"]})
+                    continue
+                result = joint_paired_bootstrap(
+                    {name: jev[name]["test"] for name in shared},
+                    {name: by_backend[right][name]["test"] for name in shared},
+                    {name: jev[name]["calibration"] for name in shared},
+                    {name: by_backend[right][name]["calibration"] for name in shared},
+                    metric=metric,
+                    condition=condition,
+                    resamples=resamples,
+                    seed=config.seed,
+                    error_budget=budget,
+                )
+                headline.append(
+                    {"id": f"headline-{set_name}-{right}-{metric}-{condition}", **base, **result}
+                )
     if k == 9:
         shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend["qwen_logit"]))
         frozen = set(family["tests"][0]["datasets"])
@@ -492,7 +551,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 del row[key]
     outputs = {
         "metrics.csv": metric_rows,
-        "pairwise_ci.csv": pairwise,
+        "pairwise_ci.csv": [*headline, *pairwise],
         "reliability_bins.csv": reliability_rows,
         "latency.csv": latency_rows,
         "flip.csv": flip_rows,
@@ -522,6 +581,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 for backend, rows in predictions.items()
             },
         },
+        "headline": headline,
         "confirmatory": confirmatory_rows,
         "descriptive_intervals": pairwise[len(confirmatory_rows) :],
         "metrics": metric_rows,
@@ -533,6 +593,10 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             "Few-label contenders use 200 in-distribution labels per dataset; not zero-shot. "
             "Their bootstrap refits temperature but not the classifier, so intervals understate "
             "training variance.",
+            "Few-label thresholds are chosen on out-of-fold predictions and applied to an all-200 "
+            "refit, so realized selective error can drift from the budget; it is reported beside "
+            "coverage.",
+            "Latency is a deployment-specific reference (first-attempt test-split calls).",
         ],
     }
     absent_classes: dict[str, Any] = {}
@@ -554,6 +618,25 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     markdown_path = report_dir / "v2.md"
     lines = [
         "# V2 benchmark",
+        "",
+        "## Headline: how much of zero-shot Jev's advantage is left",
+        "",
+        "Differences are right minus left (left = Jev) on identical items; estimation only, "
+        "unadjusted. Primary-set zero-shot accuracy/Brier rows are the C1 confirmatory estimates.",
+        "",
+        "| set | contender | gap | metric | condition | difference | 95% CI | Holm (C1) |",
+        "| --- | --- | --- | --- | --- | ---: | --- | --- |",
+    ]
+    for row in headline:
+        lines.append(
+            f"| {row['set']} | {row['right']} | {row['gap']} | {row['metric']} | "
+            f"{row['condition']} | {row['difference']:.4f} | "
+            f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] | "
+            f"{row.get('holm_reject_005', '')} |"
+        )
+    lines += [
+        "",
+        "## Confirmatory family",
         "",
         f"Frozen Holm family: k={k}.",
         "",

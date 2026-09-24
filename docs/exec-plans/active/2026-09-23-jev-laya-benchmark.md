@@ -276,18 +276,18 @@ Source: the approved assessment's value analysis. Public work already covers zer
 6. The relation-to-public-results table and limitations.
 
 **Tasks (Amendment 6):**
-- [ ] `build_derived_suites` takes `permutation_datasets` (default unchanged); `load_v2_examples` passes `dataset.permutation_datasets`; contract test.
-- [ ] `configs/v2.yaml`: `permutation_datasets: [agnews]`, `latency_items: 0`; remove the `laya_typed` and `gliner` models.
-- [ ] `PROTOCOL-v2.md`: Amendment 6 section; latency, permutation and contender text updated.
-- [ ] Report/Rmd section order as above (P5/P6).
-- [ ] Headline estimands: a `test_coverage` metric in `joint_paired_bootstrap` (threshold re-selected on the resampled calibration set, no feasible threshold → 0); headline rows (family `headline_estimation`) for Jev − `qwen_logit` and Jev − X on the primary and secondary sets; contract tests (A6-R3-F1).
-- [ ] Anchor via the minimal-env worker: a `runtime` argument on `LocalProcessBackend`, `local_runtime` paths resolved against the repo root, a pilot-v1 model spec in the worker; the two contract tests above (A6-R3-F2, A6-R4-F1, A6-R4-F2).
-- [ ] `dispatch_attempts` on Jev predictions; the latency reference uses first-attempt-success rows and reports the retried share; test (A6-R4-F3).
-- [ ] Headline primary-set zero-shot rows reuse the C1 results, with the Holm decision and k; test (A6-R4-F4).
-- [ ] `latency.csv` filled with `test-reference` rows from the test split when there is no latency suite; test (A6-R3-F3).
-- [ ] Probe tag read from the probe config (`probe_tag`, default `v2-probe`); `laya_base` checks guarded; `make_length_counters` loads only configured Laya tokenizers; `laya_typed` removed from the CLI run choices; test that `prepare` counters build on the Amendment 6 config (A6-R3-F4).
-- [ ] Few-label threshold-transfer limitation in the report and PROTOCOL (A6-R3-F5).
-- [ ] README v2 workflow: remove the v2 `gliner` run command (GLiNER only via `jev-bench anchor --config configs/pilot-v1.yaml`), add `jev-bench fewshot --backend {qwen_probe,tfidf_lr,prior}`, and drop any latency split (review A6-R2-F1).
+- [x] `build_derived_suites` takes `permutation_datasets` (default unchanged); `load_v2_examples` passes `dataset.permutation_datasets`; contract test.
+- [x] `configs/v2.yaml`: `permutation_datasets: [agnews]`, `latency_items: 0`; remove the `laya_typed` and `gliner` models.
+- [x] `PROTOCOL-v2.md`: Amendment 6 section; latency, permutation and contender text updated.
+- [ ] Report/Rmd section order as above (P5/P6) — report done (headline first in v2.md); Rmd pending P6
+- [x] Headline estimands: a `test_coverage` metric in `joint_paired_bootstrap` (threshold re-selected on the resampled calibration set, no feasible threshold → 0); headline rows (family `headline_estimation`) for Jev − `qwen_logit` and Jev − X on the primary and secondary sets; contract tests (A6-R3-F1).
+- [x] Anchor via the minimal-env worker: a `runtime` argument on `LocalProcessBackend`, `local_runtime` paths resolved against the repo root, a pilot-v1 model spec in the worker; the two contract tests above (A6-R3-F2, A6-R4-F1, A6-R4-F2).
+- [x] `dispatch_attempts` on Jev predictions; the latency reference uses first-attempt-success rows and reports the retried share; test (A6-R4-F3).
+- [x] Headline primary-set zero-shot rows reuse the C1 results, with the Holm decision and k; test (A6-R4-F4).
+- [x] `latency.csv` filled with `test-reference` rows from the test split when there is no latency suite; test (A6-R3-F3).
+- [x] Probe tag read from the probe config (`probe_tag`, default `v2-probe`); `laya_base` checks guarded; `make_length_counters` loads only configured Laya tokenizers; `laya_typed` removed from the CLI run choices; test that `prepare` counters build on the Amendment 6 config (A6-R3-F4).
+- [x] Few-label threshold-transfer limitation in the report and PROTOCOL (A6-R3-F5).
+- [x] README v2 workflow: remove the v2 `gliner` run command (GLiNER only via `jev-bench anchor --config configs/pilot-v1.yaml`), add `jev-bench fewshot --backend {qwen_probe,tfidf_lr,prior}`, and drop any latency split (review A6-R2-F1).
 - [x] `run_probe` follows the configured Laya backends (A6-F1).
 - [x] The anchor drops credentials and forces offline before loading GLiNER, with a contract test (A6-F2) — superseded by the worker task below (A6-R3-F2).
 

@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -244,6 +245,7 @@ class JevOpenRouterBackend:
             raise RuntimeError("OPENROUTER_API_KEY is required")
         body = self.request_body(example)
         response: dict[str, Any] | None = None
+        dispatch_attempts = 0
         start = time.perf_counter()
         with self._slots:
             for attempt in range(self.attempts):
@@ -296,11 +298,15 @@ class JevOpenRouterBackend:
                     continue
                 if status >= 400:
                     raise RuntimeError(f"OpenRouter HTTP {status}")
+                dispatch_attempts = attempt + 1
                 break
         assert response is not None
         served = response.get("model") if isinstance(response, dict) else None
         try:
-            return self._parse(experiment_id, example, response, start)
+            return replace(
+                self._parse(experiment_id, example, response, start),
+                dispatch_attempts=dispatch_attempts,
+            )
         except Exception as exc:
             # Keep the serving snapshot on unscorable 2xx responses for provenance checks.
             raise JevResponseError(

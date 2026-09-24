@@ -18,15 +18,15 @@ from .io import write_json
 from .models import Example
 
 
-def _probe_tagged(path: Path) -> None:
+def _probe_tagged(path: Path, tag: str = "v2-probe") -> None:
     root = Path(__file__).resolve().parents[2]
     tagged = subprocess.run(
-        ["git", "show", f"v2-probe:{path.resolve().relative_to(root)}"],
+        ["git", "show", f"{tag}:{path.resolve().relative_to(root)}"],
         check=True,
         capture_output=True,
     ).stdout
     if tagged != path.read_bytes():
-        raise RuntimeError("probe config differs from v2-probe tag")
+        raise RuntimeError(f"probe config differs from {tag} tag")
 
 
 def _laya_source_audit() -> dict[str, Any]:
@@ -116,10 +116,11 @@ def _qwen_mode(example: Example, tokenizer: Any, model: dict[str, Any]) -> dict[
 
 def run_probe(path: Path, *, static_only: bool = False) -> Path:
     """Run only pinned synthetic calls; no benchmark text is sent to a model."""
-    _probe_tagged(path)
     probe = yaml.safe_load(path.read_text(encoding="utf-8"))
+    tag = str(probe.get("probe_tag", "v2-probe"))
+    _probe_tagged(path, tag)
     base_path = path.parent.parent / probe["base_config"]
-    _probe_tagged(base_path)
+    _probe_tagged(base_path, tag)
     config = load_config(base_path)
     if config.raw.get("schema_version") != 2:
         raise ValueError("probe base must be a v2 config")
@@ -141,7 +142,10 @@ def run_probe(path: Path, *, static_only: bool = False) -> Path:
         if str(config.raw["models"][name]["revision"]).startswith("TODO-PIN"):
             raise ValueError(f"{name} revision needs TODO-PIN resolution")
     if (
-        probe["model_revisions"]["laya"] != config.raw["models"]["laya_base"]["revision"]
+        any(
+            probe["model_revisions"]["laya"] != config.raw["models"][backend]["revision"]
+            for backend, _ in laya_backends
+        )
         or probe["model_revisions"]["qwen"] != config.raw["models"]["qwen_logit"]["revision"]
     ):
         raise ValueError("probe model revisions differ from frozen v2 config")
