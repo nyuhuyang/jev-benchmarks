@@ -385,3 +385,10 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R6 medium: realized selective error missing next to coverage → FIXED: left/right coverage, selective error and no-feasible counts on headline coverage rows, plus a v2.md table.
 - R7 low: stale README/PROTOCOL intro text → FIXED.
 - Regression tests added.
+
+### A6 build inspection 2 — Codex (fresh) — REVISE (inspection budget 2/2 used)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-inspect2/claudex-7wl73nf_/result.json (cross_provider; base ff5aeb9; head 2e830f7)
+- R1 high: an all-failure score dataset was treated as scalar-only → FIXED: scalar-only requires a successful scalar call; otherwise vector penalties apply.
+- R2 medium: dispatch history was lost across invocations → FIXED: attempt selection sums dispatch_attempts across every row of a key.
+- R3 medium: condition-B draws without a fittable T were dropped (success-conditioned) → FIXED: such draws use T = 1; confirmatory tests with an undefined estimate or fewer than the frozen usable draws get no Holm rejection. Rules written into PROTOCOL.
+- Regression tests added. **These fixes are not covered by a Codex inspection** (budget exhausted).

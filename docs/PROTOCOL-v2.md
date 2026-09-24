@@ -158,6 +158,16 @@ contenders. Final length exclusions come from `prepare` on the Amendment 6 confi
 Few-label thresholds are chosen on out-of-fold predictions and applied to an all-200 refit, so
 realized selective error can drift from 5%; it is reported beside coverage.
 
+Bootstrap failure rules (build inspection):
+- A resampled calibration set with no successful vectors cannot fit T, so that draw uses T = 1
+  (B = A for the draw); failures never drop draws.
+- A score dataset with no successful call takes the vector failure penalties (Brier 2, NLL
+  −log 0.005, coverage 0). Scalar-only handling needs a successful scalar call.
+- A confirmatory test whose estimate is undefined, or whose usable draws are fewer than the frozen
+  2,000, is reported without a Holm rejection.
+- Jev dispatch history is summed across every invocation of a prediction key: earlier failed
+  attempts count in the retry share and exclude the key from the first-attempt latency reference.
+
 ## Amendment 5: few-label arm, confirmatory set, framing
 
 **Framing.** This study is a same-run controlled re-check of public Jev, Laya and local-logit

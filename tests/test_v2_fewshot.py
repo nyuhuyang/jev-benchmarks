@@ -512,3 +512,58 @@ def test_failed_jev_call_keeps_its_attempt_count(
         cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev()
     )
     assert {row["dispatch_attempts"] for row in read_jsonl(output)} == {3}
+
+
+def test_score_dataset_with_no_successful_calls_takes_vector_penalties() -> None:
+    from jev_benchmarks.v2_metrics import score_v2
+
+    rows = [
+        replace(report_prediction("a", row), question_type="score", error="x", probabilities=())
+        for row in report_examples()
+    ]
+    scores = score_v2(rows, threshold=0.5)
+    assert scores["brier"] == 2.0 and scores["test_coverage"] == 0.0
+
+
+def test_dispatch_history_spans_earlier_failed_invocations(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    rows = [report_prediction("qwen_logit", row) for row in manifest]
+    failed = replace(rows[4], error="RuntimeError: HTTP 503", probabilities=(), dispatch_attempts=3)
+    retried = replace(rows[4], dispatch_attempts=1)
+    write_jsonl(
+        cfg.output_dir / "qwen_logit" / "attempt-1" / "predictions.jsonl",
+        [row.to_dict() for row in [*rows[:4], failed, retried, *rows[5:]]],
+    )
+    _, selected, _ = _select_attempt(cfg, "qwen_logit", manifest)
+    assert (
+        next(
+            row for row in selected if row.example_id == rows[4].example_id and row.split == "test"
+        ).dispatch_attempts
+        == 4
+    )
+
+
+def test_condition_b_draws_without_a_fittable_temperature_are_kept() -> None:
+    from jev_benchmarks.v2_metrics import joint_paired_bootstrap
+
+    manifest = report_examples()
+    good = [report_prediction("a", row) for row in manifest]
+    sparse = [
+        row
+        if row.split == "test" or row.example_id == "id:0"
+        else replace(row, error="x", probabilities=())
+        for row in good
+    ]
+    split = lambda rows, name: {"agnews": [row for row in rows if row.split == name]}  # noqa: E731
+    result = joint_paired_bootstrap(
+        split(good, "test"),
+        split(sparse, "test"),
+        split(good, "calibration"),
+        split(sparse, "calibration"),
+        metric="brier",
+        condition="B_scaled",
+        resamples=50,
+        seed=1,
+    )
+    assert result["resamples_used"] == 50

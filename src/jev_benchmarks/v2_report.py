@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from collections import defaultdict
+from dataclasses import replace
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -131,8 +132,14 @@ def _select_attempt(
         ):
             continue
         latest: dict[tuple[str, str, str, str, int], Prediction] = {}
+        dispatches: dict[tuple[str, str, str, str, int], int] = defaultdict(int)
         for row in rows:
             latest[prediction_key(row)] = row
+            dispatches[prediction_key(row)] += row.dispatch_attempts or 0
+        # Earlier failed invocations of a key count toward its dispatch history.
+        for key, row in latest.items():
+            if dispatches[key] > (row.dispatch_attempts or 0):
+                latest[key] = replace(row, dispatch_attempts=dispatches[key])
         # Every call that received a response (success, unscorable or later retried) must share
         # one snapshot; calls with no response ("unknown") produced no output and score as failures.
         resolved = {row.model_resolved for row in rows if row.model_resolved != "unknown"}
@@ -377,8 +384,10 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             resamples=int(config.raw["metrics"]["bootstrap_resamples"]),
             seed=config.seed,
         )
-        # An undefined estimate (every draw undefined) is never a rejection.
-        p_values[test["id"]] = 1.0 if result["p_two_sided"] is None else result["p_two_sided"]
+        # No Holm rejection from an undefined estimate or a reduced (success-conditioned) draw set.
+        p_value = result["p_two_sided"]
+        full = result["resamples_used"] == int(config.raw["metrics"]["bootstrap_resamples"])
+        p_values[test["id"]] = float(p_value) if p_value is not None and full else 1.0
         pairwise.append(
             {
                 "id": test["id"],

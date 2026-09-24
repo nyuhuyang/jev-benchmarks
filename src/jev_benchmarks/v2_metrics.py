@@ -219,7 +219,10 @@ def score_v2(
             ]
         )
     if not valid:
-        if not score_question or any(row.probabilities for row in rows):
+        # Scalar-only needs evidence: a successful score call with an expected level and no vector.
+        # With no successful call at all, failures take the vector penalties (protocol).
+        scalar_only = any(row.error is None and not row.probabilities for row in scalar)
+        if not score_question or not scalar_only:
             # Every call failed: worst-case penalties, nothing automated, ECE undefined.
             result.update(
                 {
@@ -515,7 +518,9 @@ def joint_paired_bootstrap(
                 (sample[name][1], calibrations[name][1], right_policy),
             ):
                 if policy == "B_scaled":
-                    temperature = fit_temperature(cal)
+                    # A resampled calibration set with no successful vectors cannot fit T; that
+                    # draw uses T = 1 (B = A), so failures never drop draws (protocol).
+                    temperature = fit_temperature(cal) or 1.0
                     rows = condition_b(rows, temperature)
                     cal = condition_b(cal, temperature) if metric == "test_coverage" else cal
                 if metric == "test_coverage":
