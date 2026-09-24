@@ -93,9 +93,9 @@ GLiNER downloads the pinned checkpoint on first use.
 ### V2 code path
 
 [The v2 draft protocol](docs/PROTOCOL-v2.md) covers choice, binary noul and five-level score
-questions across Jev via OpenRouter, three local Laya checkpoints and local Qwen3-1.7B logits.
-GLiNER2.5 runs on all nine datasets as a descriptive contender and is excluded from the
-confirmatory family.
+questions across Jev via OpenRouter, local Laya base and multilingual checkpoints, local
+Qwen3-1.7B logits, and a descriptive few-label arm trained on 200 calibration labels. GLiNER2.5
+runs only as the pilot-v1 harness anchor.
 `configs/v2.yaml` and `configs/probe-v2.yaml` are templates. A human operator must pin all
 `TODO-PIN` revisions and paths, complete the synthetic capability checks, fill every
 `TO-FILL-AFTER-PROBE` field, prepare the manifest, record hashes in `configs/v2-freeze.json`, and

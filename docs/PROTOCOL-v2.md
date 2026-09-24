@@ -11,9 +11,8 @@ checkpoints, and local Qwen3-1.7B logit scoring on the same typed decisions. Ame
 the typed-decision checkpoint and the v2 GLiNER runs. It measures shared
 capability, not overall intelligence. The confirmatory questions are pairwise differences in
 accuracy and Brier score across a frozen common English dataset set. The null for each contrast
-is a zero mean difference. Direction is not prespecified. GLiNER2.5 is a descriptive contender on
-all nine datasets, including nominal five-class score probabilities. It is never in C1–C3 or the
-Holm family.
+is a zero mean difference. Direction is not prespecified. GLiNER2.5 appears only as the P3.0
+harness anchor on the upstream pilot-v1 manifest; it is never in C1–C3 or the Holm family.
 
 ## Artifacts and capability gate
 
@@ -138,8 +137,9 @@ absolute-path file. No fine-tuning or benchmark-specific prompt tuning is perfor
 ## Amendment 6: scope cut and headline estimands
 
 The headline question is how much of zero-shot Jev's advantage is left when a local model gets the
-same ~200 labels. On identical test items, two paired gaps are reported side by side, both right
-minus left with Jev on the left:
+same ~200 labels. On identical test items, two paired gaps are reported side by side. Both are
+contender minus Jev, the same sign as C1: a negative accuracy or coverage difference, or a positive
+Brier difference, means Jev leads.
 - the zero-shot gap, Jev vs `qwen_logit`;
 - the few-label gap, Jev vs `qwen_probe`, `tfidf_lr` and `prior`.
 

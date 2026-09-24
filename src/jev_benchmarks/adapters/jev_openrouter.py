@@ -246,11 +246,13 @@ class JevOpenRouterBackend:
         body = self.request_body(example)
         response: dict[str, Any] | None = None
         dispatch_attempts = 0
+        self.last_dispatch_attempts = 0  # read by the runner when this call fails
         start = time.perf_counter()
         with self._slots:
             for attempt in range(self.attempts):
                 txn = str(uuid.uuid4())
                 reservation = self.budget.reserve(body, txn)
+                self.last_dispatch_attempts = attempt + 1
                 try:
                     status, headers, response = self.transport(body, key, self.timeout)
                 except TimeoutError:

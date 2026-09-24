@@ -225,8 +225,9 @@ Source: the approved assessment's value analysis. Public work already covers zer
 **Headline estimands (frozen before `v2-preregistered`; estimation only, review A6-R3-F1).**
 - **Primary set:** the 4 confirmatory datasets (AG News, DAIR Emotion, SMS Spam, Civil Comments), equal-weighted. **Secondary:** every dataset shared by Jev and the contender (9 for the few-label arm; vector metrics only where both sides return full distributions).
 - **"How much of Jev's advantage is left"** is reported as two paired differences on identical test items, side by side:
-  - zero-shot gap: Jev − `qwen_logit`;
-  - few-label gap: Jev − X, for X ∈ {`qwen_probe`, `tfidf_lr`, `prior`}.
+  - zero-shot gap: `qwen_logit` vs Jev;
+  - few-label gap: X vs Jev, for X ∈ {`qwen_probe`, `tfidf_lr`, `prior`}.
+  - **Sign (build inspection A6-R5):** every difference is reported as contender − Jev, the same convention as C1 (right − left). A negative accuracy or coverage difference, or a positive Brier difference, means Jev leads.
   - No ratio is reported, because it is unstable when the zero-shot gap is near 0.
 - **Metrics:** accuracy (A_raw), Brier A_raw, Brier B_scaled, and **coverage at 5% error** under A_raw and B_scaled.
 - **Coverage difference:** a paired, dataset-stratified bootstrap (2,000 resamples) resamples calibration and test items and **re-selects each side's threshold on the resampled calibration set** (for B, after refitting T). A dataset with no feasible threshold contributes coverage 0; the per-dataset no-feasible flags are reported. Realized test selective error is reported next to coverage.

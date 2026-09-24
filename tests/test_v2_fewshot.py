@@ -199,8 +199,14 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
             for row in manifest
             for repeat in range(model["repeats"])
         ]
-        if backend == "jev_openrouter":  # one of four test rows needed a retry
+        if backend == "jev_openrouter":  # one test row retried, one failed after 3 attempts
             predictions[12] = replace(predictions[12], dispatch_attempts=2)
+            predictions[15] = replace(
+                predictions[15],
+                error="RuntimeError: HTTP 503",
+                probabilities=(),
+                dispatch_attempts=3,
+            )
         write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
         (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
     (cfg.output_dir / "prior" / "attempt-1" / "fewshot-metadata.json").write_text(
@@ -211,8 +217,8 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
         metrics = list(csv.DictReader(handle))
     prior_rows = [row for row in metrics if row["backend"] == "prior"]
     jev_rows = [row for row in metrics if row["backend"] == "jev_openrouter"]
-    assert prior_rows and all(not row["latency_p50_seconds"] for row in prior_rows)
-    assert all(row["latency_p50_seconds"] for row in jev_rows if row["condition"] == "A_raw")
+    # Latency lives only in latency.csv (Amendment 6), never in metric rows.
+    assert prior_rows and jev_rows and not any("latency" in key for key in metrics[0])
     payload = json.loads(json_path.read_text())
     few = [row for row in payload["headline"] if row["right"] == "prior"]
     assert {(row["set"], row["metric"], row["condition"]) for row in few} == {
@@ -239,7 +245,13 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
     assert {row["backend"] for row in latency} == {"jev_openrouter", "qwen_logit"}
     assert {row["workload"] for row in latency} == {"test-reference"}
     jev_latency = next(row for row in latency if row["backend"] == "jev_openrouter")
-    assert float(jev_latency["retried_share"]) == pytest.approx(0.25)
+    assert float(jev_latency["retried_share"]) == pytest.approx(0.5)
+    coverage = [row for row in payload["headline"] if row["metric"] == "test_coverage"]
+    assert coverage and all(
+        {"left_coverage", "right_coverage", "left_selective_error", "right_no_feasible"} <= set(row)
+        for row in coverage
+    )
+    assert "Coverage detail" in json_path.with_suffix(".md").read_text()
     assert any("not zero-shot" in text for text in payload["limitations"])
     assert payload["public_results"][0]["source"] == "elcronos"
     assert payload["few_label_absent_class_held_out_rows"] == {"prior": {"agnews": 3}}
@@ -438,3 +450,65 @@ def test_jev_prediction_records_dispatch_attempts(monkeypatch: pytest.MonkeyPatc
     jev = JevOpenRouterBackend("m", {}, transport=lambda *_: replies.pop(0), sleep=lambda _: None)
     row = replace(report_examples()[0], instructions="Pick?")
     assert jev.predict("run", row).dispatch_attempts == 2
+
+
+def test_all_failure_resamples_are_defined_or_skipped() -> None:
+    from jev_benchmarks.v2_metrics import joint_paired_bootstrap, score_v2
+
+    manifest = report_examples()
+    good = [report_prediction("a", row) for row in manifest]
+    failed = [replace(row, error="x", probabilities=()) for row in good]
+    empty = score_v2([row for row in failed if row.split == "test"], threshold=0.5)
+    assert empty["test_coverage"] == 0.0 and empty["ece"] is None and empty["brier"] == 2.0
+    mostly_failed = [row if row.example_id == "id:0" else failed[i] for i, row in enumerate(good)]
+    split = lambda rows, name: {"agnews": [row for row in rows if row.split == name]}  # noqa: E731
+    result = joint_paired_bootstrap(
+        split(good, "test"),
+        split(mostly_failed, "test"),
+        split(good, "calibration"),
+        split(good, "calibration"),
+        metric="ece",
+        condition="A_raw",
+        resamples=50,
+        seed=1,
+    )
+    assert 0 < result["resamples_used"] < 50
+
+
+def test_newest_attempt_is_chosen_numerically(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    for number, snapshot in ((9, "old"), (10, "new")):
+        rows = [
+            replace(report_prediction("qwen_logit", row), model_resolved=snapshot)
+            for row in manifest
+        ]
+        write_jsonl(
+            cfg.output_dir / "qwen_logit" / f"attempt-{number}" / "predictions.jsonl",
+            [row.to_dict() for row in rows],
+        )
+    assert _select_attempt(cfg, "qwen_logit", manifest)[0].name == "attempt-10"
+
+
+def test_failed_jev_call_keeps_its_attempt_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Jev:
+        last_dispatch_attempts = 3
+
+        def predict(self, experiment_id, row):
+            raise RuntimeError("OpenRouter HTTP 503 after retries")
+
+        def close(self):
+            return None
+
+    output = run_v2_backend(
+        cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev()
+    )
+    assert {row["dispatch_attempts"] for row in read_jsonl(output)} == {3}

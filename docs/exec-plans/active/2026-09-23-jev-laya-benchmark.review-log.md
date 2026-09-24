@@ -374,3 +374,14 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r5-fallback/claudex-bavnnzw5/result.json (plan sha e9fb95818243f989e4dfecc9f02f1847e270be1fb96add6c36153a2597a4f568); runner check: "Approval matches the current plan; assurance=degraded_same_provider".
 - Assurance note: Codex was unavailable (usage limit until 2026-09-27 11:31); rounds 3–5 were fresh-then-resumed Claude fallback reviews, not cross-provider.
 - Minor ambiguity noted by the reviewer: how `anchor` locates configs/v2.yaml → resolved in the build as the sibling `configs/v2.yaml` of the pilot-v1 config.
+
+### A6 build inspection 1 — Codex (fresh; Codex available again) — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-inspect1/claudex-akold8j6/result.json (cross_provider; base ff5aeb9; head 524e382)
+- R1 high: all-failure bootstrap resamples crashed on missing coverage/ECE → FIXED: score_v2 returns Brier 2, coverage 0, ECE None and the no-feasible flag for all-failure samples; the bootstrap skips undefined draws and reports resamples_used; an undefined confirmatory p counts as no rejection.
+- R2 medium: attempts sorted lexically → FIXED: numeric sort.
+- R3 medium: latency in metrics.csv differed from the latency.csv reference → FIXED: latency fields removed from every metric row.
+- R4 medium: the attempt count was lost on failed Jev calls → FIXED: the backend exposes last_dispatch_attempts, the runner stores it on failure rows, and retried_share covers every dispatched item.
+- R5 medium: sign convention ambiguous → FIXED: contender − Jev everywhere (same as C1), stated in the plan, PROTOCOL and v2.md.
+- R6 medium: realized selective error missing next to coverage → FIXED: left/right coverage, selective error and no-feasible counts on headline coverage rows, plus a v2.md table.
+- R7 low: stale README/PROTOCOL intro text → FIXED.
+- Regression tests added.

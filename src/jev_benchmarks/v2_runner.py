@@ -387,6 +387,7 @@ def _dispatch(
                     letter_mode=example.letter_mode,
                     repeat_index=repeat,
                     attempt_id=int(attempt.name.split("-")[-1]),
+                    dispatch_attempts=getattr(backend, "last_dispatch_attempts", None) or None,
                 )
             append_jsonl(output, prediction.to_dict(), secret=secret)
             if getattr(getattr(backend, "budget", None), "paused", False):

@@ -53,6 +53,10 @@ def _gliner_exclusions(config: BenchmarkConfig) -> list[str]:
     ]
 
 
+def _num(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
+
+
 def vector_datasets(
     left: dict[str, dict[str, list[Prediction]]],
     right: dict[str, dict[str, list[Prediction]]],
@@ -100,7 +104,12 @@ def _select_attempt(
     contract = {
         (row.split, row.example_id, row.permutation_id, row.letter_mode): row for row in manifest
     }
-    for path in sorted((config.output_dir / backend).glob("attempt-*"), reverse=True):
+    attempts = sorted(
+        (config.output_dir / backend).glob("attempt-*"),
+        key=lambda path: int(path.name.split("-")[-1]),
+        reverse=True,
+    )
+    for path in attempts:
         file = path / "predictions.jsonl"
         data = file.read_bytes() if file.exists() else b""
         rows = [
@@ -257,6 +266,8 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                     )
             done = [row for row in test if row.error is None]
             first_try = [row for row in done if (row.dispatch_attempts or 1) == 1]
+            # Every dispatched item counts toward the retry share, including final failures.
+            dispatched = [row for row in test if row.error is None or row.dispatch_attempts]
             if not splits.get("latency") and backend not in FEWSHOT_BACKENDS and first_try:
                 # Amendment 6 reference: first-attempt successes on the test split only.
                 model_times = [
@@ -270,7 +281,8 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                         "dataset": dataset,
                         "workload": "test-reference",
                         "n": len(first_try),
-                        "retried_share": (len(done) - len(first_try)) / len(done),
+                        "retried_share": sum((row.dispatch_attempts or 1) > 1 for row in dispatched)
+                        / len(dispatched),
                         "latency_p50_seconds": float(
                             np.quantile([row.latency_seconds for row in first_try], 0.5)
                         ),
@@ -365,7 +377,8 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             resamples=int(config.raw["metrics"]["bootstrap_resamples"]),
             seed=config.seed,
         )
-        p_values[test["id"]] = result["p_two_sided"]
+        # An undefined estimate (every draw undefined) is never a rejection.
+        p_values[test["id"]] = 1.0 if result["p_two_sided"] is None else result["p_two_sided"]
         pairwise.append(
             {
                 "id": test["id"],
@@ -506,6 +519,28 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 headline.append(
                     {"id": f"headline-{set_name}-{right}-{metric}-{condition}", **base, **result}
                 )
+    # Each side's realized coverage, selective error and no-feasible count beside coverage rows.
+    by_key = {
+        (row["backend"], row["dataset"], row["condition"]): row
+        for row in metric_rows
+        if "condition" in row
+    }
+    for row in headline:
+        if row["metric"] != "test_coverage":
+            continue
+        for prefix in ("left", "right"):
+            cells = [
+                by_key.get((row[prefix], name, row["condition"]), {}) for name in row["datasets"]
+            ]
+            coverage = [c["test_coverage"] for c in cells if c.get("test_coverage") is not None]
+            errors = [
+                c["test_selective_error"]
+                for c in cells
+                if c.get("test_selective_error") is not None
+            ]
+            row[f"{prefix}_coverage"] = float(np.mean(coverage)) if coverage else None
+            row[f"{prefix}_selective_error"] = float(np.mean(errors)) if errors else None
+            row[f"{prefix}_no_feasible"] = sum(bool(c.get("no_feasible_threshold")) for c in cells)
     if k == 9:
         shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend["qwen_logit"]))
         frozen = set(family["tests"][0]["datasets"])
@@ -545,10 +580,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     except ImportError:
         mps_available = None
     for row in metric_rows:
-        if row["backend"] in FEWSHOT_BACKENDS:
-            # No common single-call operation: training/batch time is not latency.
-            for key in [key for key in row if "latency" in key]:
-                del row[key]
+        # Latency is published only as the latency.csv reference (Amendment 6).
+        for key in [key for key in row if "latency" in key]:
+            del row[key]
     outputs = {
         "metrics.csv": metric_rows,
         "pairwise_ci.csv": [*headline, *pairwise],
@@ -621,8 +655,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         "",
         "## Headline: how much of zero-shot Jev's advantage is left",
         "",
-        "Differences are right minus left (left = Jev) on identical items; estimation only, "
-        "unadjusted. Primary-set zero-shot accuracy/Brier rows are the C1 confirmatory estimates.",
+        "Differences are contender minus Jev on identical items: a negative accuracy or coverage "
+        "difference, or a positive Brier difference, means Jev leads. Estimation only, unadjusted; "
+        "primary-set zero-shot accuracy/Brier rows are the C1 confirmatory estimates.",
         "",
         "| set | contender | gap | metric | condition | difference | 95% CI | Holm (C1) |",
         "| --- | --- | --- | --- | --- | ---: | --- | --- |",
@@ -630,9 +665,26 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     for row in headline:
         lines.append(
             f"| {row['set']} | {row['right']} | {row['gap']} | {row['metric']} | "
-            f"{row['condition']} | {row['difference']:.4f} | "
-            f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] | "
+            f"{row['condition']} | {_num(row['difference'])} | "
+            f"[{_num(row['ci95_low'])}, {_num(row['ci95_high'])}] | "
             f"{row.get('holm_reject_005', '')} |"
+        )
+    coverage_rows = [row for row in headline if row["metric"] == "test_coverage"]
+    if coverage_rows:
+        lines += [
+            "",
+            "Coverage detail (mean over datasets; selective error is realized on test):",
+            "",
+            "| set | contender | condition | Jev coverage | contender coverage | "
+            "Jev selective error | contender selective error | no-feasible (Jev/contender) |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | --- |",
+        ]
+        lines.extend(
+            f"| {row['set']} | {row['right']} | {row['condition']} | "
+            f"{_num(row['left_coverage'])} | {_num(row['right_coverage'])} | "
+            f"{_num(row['left_selective_error'])} | {_num(row['right_selective_error'])} | "
+            f"{row['left_no_feasible']}/{row['right_no_feasible']} |"
+            for row in coverage_rows
         )
     lines += [
         "",
@@ -647,9 +699,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     ]
     for row in confirmatory_rows:
         lines.append(
-            f"| {row['id']} | {row['difference']:.4f} | "
-            f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] | "
-            f"{row['p_two_sided']:.4f} | {row['holm_reject_005']} |"
+            f"| {row['id']} | {_num(row['difference'])} | "
+            f"[{_num(row['ci95_low'])}, {_num(row['ci95_high'])}] | "
+            f"{_num(row['p_two_sided'])} | {row['holm_reject_005']} |"
         )
     lines.extend(
         [
@@ -664,8 +716,8 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     )
     for row in pairwise[len(confirmatory_rows) :]:
         lines.append(
-            f"| {row['id']} | {row['difference']:.4f} | "
-            f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] |"
+            f"| {row['id']} | {_num(row['difference'])} | "
+            f"[{_num(row['ci95_low'])}, {_num(row['ci95_high'])}] |"
         )
     if absent_classes:
         lines.extend(

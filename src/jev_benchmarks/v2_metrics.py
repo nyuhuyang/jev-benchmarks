@@ -220,8 +220,18 @@ def score_v2(
         )
     if not valid:
         if not score_question or any(row.probabilities for row in rows):
-            result["brier"] = 2.0
-            result["nll"] = -math.log(EPSILON)
+            # Every call failed: worst-case penalties, nothing automated, ECE undefined.
+            result.update(
+                {
+                    "brier": 2.0,
+                    "nll": -math.log(EPSILON),
+                    "ece": None,
+                    "calibration_threshold": threshold,
+                    "test_coverage": 0.0,
+                    "test_selective_error": None,
+                    "no_feasible_threshold": threshold is None,
+                }
+            )
         else:
             result.update(
                 {
@@ -473,7 +483,7 @@ def joint_paired_bootstrap(
     resamples: int = 2000,
     seed: int = 20260923,
     error_budget: float = 0.05,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Dataset-stratified paired bootstrap of ``score(right) - score(left)``, averaged over
     datasets. ``test_coverage`` re-selects each side's threshold on the resampled calibration
     set (after refitting T under B); no feasible threshold means coverage 0."""
@@ -510,9 +520,12 @@ def joint_paired_bootstrap(
                     cal = condition_b(cal, temperature) if metric == "test_coverage" else cal
                 if metric == "test_coverage":
                     threshold = select_threshold(cal, error_budget)
-                    sides.append(float(score_v2(rows, threshold=threshold)["test_coverage"]))
+                    value = score_v2(rows, threshold=threshold)["test_coverage"]
                 else:
-                    sides.append(float(score_v2(rows)[metric]))
+                    value = score_v2(rows).get(metric)
+                if value is None:  # e.g. ECE of an all-failure resample: draw undefined
+                    return math.nan
+                sides.append(float(value))
             values.append(sides[1] - sides[0])
         return sum(values) / len(values)
 
@@ -538,13 +551,23 @@ def joint_paired_bootstrap(
                 [right[int(index)] for index in indices],
             )
         differences.append(difference(test_sample, cal_sample))
-    nonpositive = sum(value <= 0 for value in differences) / resamples
-    nonnegative = sum(value >= 0 for value in differences) / resamples
+    defined = [value for value in differences if not math.isnan(value)]
+    if math.isnan(observed) or not defined:
+        return {
+            "difference": None,
+            "ci95_low": None,
+            "ci95_high": None,
+            "p_two_sided": None,
+            "resamples_used": len(defined),
+        }
+    nonpositive = sum(value <= 0 for value in defined) / len(defined)
+    nonnegative = sum(value >= 0 for value in defined) / len(defined)
     return {
         "difference": observed,
-        "ci95_low": float(np.quantile(differences, 0.025)),
-        "ci95_high": float(np.quantile(differences, 0.975)),
+        "ci95_low": float(np.quantile(defined, 0.025)),
+        "ci95_high": float(np.quantile(defined, 0.975)),
         "p_two_sided": max(1 / 2000, min(1.0, 2 * min(nonpositive, nonnegative))),
+        "resamples_used": len(defined),
     }
 
 
