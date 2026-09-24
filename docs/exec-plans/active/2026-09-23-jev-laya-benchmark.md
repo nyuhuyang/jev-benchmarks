@@ -3,7 +3,7 @@ _Locked via claudex-loop — by Claude + Dr. Yang Hu, 2026-09-23_
 
 Review log: `docs/exec-plans/active/2026-09-23-jev-laya-benchmark.review-log.md`
 Recon/handoff record: `docs/exec-plans/active/2026-09-23-jev-laya-benchmark.handoff.md`
-Study pointer plan: `study/docs/exec-plans/active/2026-09-23-jev-laya-benchmark.md`
+Study pointer plan: `study_research/docs/exec-plans/active/2026-09-23-jev-laya-benchmark.md` (the study directory is `study_research/`, not `study/`)
 
 ## Goal
 
@@ -17,7 +17,7 @@ Coverage: all three question types (choice / noul / score), on discrimination, p
 
 Deliverables:
 - aggregate reports in this repo;
-- a Chinese R Markdown essay in `study/` whose every number is computed from vendored aggregate CSVs.
+- a Chinese R Markdown essay in `study_research/` whose every number is computed from vendored aggregate CSVs.
 
 This is a **shared-capability comparison, not a claim about overall intelligence**.
 
@@ -208,13 +208,13 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 
 ### P6 — Study Rmd
 
-1. Vendor the aggregate CSVs and `SHA256SUMS` into `study/docs/data-external/jev-laya-bench/`. The Rmd verifies the hashes in its setup chunk and stops on mismatch.
-2. Write `study/jev_laya_benchmark_zh.Rmd` following `study/CLAUDE.md`:
+1. Vendor the aggregate CSVs and `SHA256SUMS` into `study_research/docs/data-external/jev-laya-bench/`. The Rmd verifies the hashes in its setup chunk and stops on mismatch.
+2. Write `study_research/jev_laya_benchmark_zh.Rmd` following `study_research/CLAUDE.md`. The design part (§1–§6) was written before P4, at `v2-preregistered`, rendered clean, 2026-09-24:
    - Chinese prose, English figure labels, `ft_show()` tables, `code_folding: hide` + `toc_float`.
    - **Every number comes from `reg()`** (`kind = "source"`, with the run id and CSV hash in `note`).
    - Sections: question; three routes; protocol; results by question type; calibration A vs B; order sensitivity; Jev non-determinism; latency (with the OpenRouter-hop caveat); limitations (contamination, OpenRouter vs direct API, pilot scale, Laya typed-decisions out-of-domain, the Jev/Laya/Qwen contrasts are zero-shot with no fine-tuning; the Amendment 5 few-label arm (`qwen_probe`, `tfidf_lr`, `prior`) is supervised on 200 calibration labels and labelled as such (review A5-R2-F3)); answers to wiki Q165/Q166/Q167/Q174/Q183/Q189/Q190/Q191/Q192.
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
-4. Add a row to `study/docs/PLANS.md`.
+4. Add a row to `study_research/docs/PLANS.md` (done; state in-progress until §7 results).
 
 ### Amendment 7 — pre-freeze CCFA research gate (user-requested 2026-09-24)
 
