@@ -567,3 +567,94 @@ def test_condition_b_draws_without_a_fittable_temperature_are_kept() -> None:
         seed=1,
     )
     assert result["resamples_used"] == 50
+
+
+def test_complete_all_failure_local_attempt_is_scored_but_jev_is_not(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    for backend, repeats in (("qwen_logit", 1), ("jev_openrouter", 3)):
+        rows = [
+            replace(report_prediction(backend, row, repeat), model_resolved="unknown", error="x")
+            for row in manifest
+            for repeat in range(repeats)
+        ]
+        write_jsonl(
+            cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
+            [row.to_dict() for row in rows],
+        )
+    assert _select_attempt(cfg, "qwen_logit", manifest)[0].name == "attempt-1"
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "jev_openrouter", manifest)
+
+
+def test_unavailable_condition_b_is_reported_not_raised() -> None:
+    from jev_benchmarks.v2_metrics import joint_paired_bootstrap
+
+    manifest = report_examples()
+    good = [report_prediction("a", row) for row in manifest]
+    no_cal = [
+        row if row.split == "test" else replace(row, error="x", probabilities=()) for row in good
+    ]
+    split = lambda rows, name: {"agnews": [row for row in rows if row.split == name]}  # noqa: E731
+    result = joint_paired_bootstrap(
+        split(good, "test"),
+        split(no_cal, "test"),
+        split(good, "calibration"),
+        split(no_cal, "calibration"),
+        metric="brier",
+        condition="B_scaled",
+        resamples=10,
+        seed=1,
+    )
+    assert result["difference"] is None and result["p_two_sided"] is None
+    assert "unavailable" in result
+
+
+def test_runner_times_every_call_at_its_own_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Backend:
+        def predict(self, experiment_id, row):
+            return replace(report_prediction("jev_openrouter", row), latency_seconds=99.0)
+
+        def close(self):
+            return None
+
+    output = run_v2_backend(
+        cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Backend()
+    )
+    assert all(row["latency_seconds"] < 99.0 for row in read_jsonl(output))
+
+
+def test_latency_reference_row_survives_when_every_call_was_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = report_config(tmp_path)
+    protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
+    protocol.parent.mkdir()
+    protocol.write_text("frozen protocol", encoding="utf-8")
+    manifest = report_examples()
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    for backend, model in cfg.raw["models"].items():
+        predictions = [
+            replace(report_prediction(backend, row, repeat), dispatch_attempts=2)
+            if backend == "jev_openrouter"
+            else report_prediction(backend, row, repeat)
+            for row in manifest
+            for repeat in range(model["repeats"])
+        ]
+        attempt = cfg.output_dir / backend / "attempt-1"
+        write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
+    json_path, _ = build_v2_report(cfg)
+    with (json_path.parent / "latency.csv").open() as handle:
+        jev = next(row for row in csv.DictReader(handle) if row["backend"] == "jev_openrouter")
+    assert (
+        jev["n"] == "0" and jev["latency_p50_seconds"] == "" and float(jev["retried_share"]) == 1.0
+    )

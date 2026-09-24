@@ -504,7 +504,15 @@ def joint_paired_bootstrap(
             or (right_policy == "B_scaled" and fit_temperature(right_cal[name]) is None)
             for name in datasets
         ):
-            raise ValueError("condition B unavailable without full calibration vectors")
+            # Protocol: B is unavailable (no calibration vectors); report it, never reject.
+            return {
+                "difference": None,
+                "ci95_low": None,
+                "ci95_high": None,
+                "p_two_sided": None,
+                "resamples_used": 0,
+                "unavailable": "condition B: no calibration vectors",
+            }
 
     def difference(
         sample: Mapping[str, tuple[Sequence[Prediction], Sequence[Prediction]]],

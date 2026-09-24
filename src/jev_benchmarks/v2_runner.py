@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -316,7 +317,11 @@ def _dispatch(
             prediction: Prediction | None = None
             served_hint: str | None = None
             try:
+                # Wall time at one boundary for every backend: includes prompt preparation and
+                # local worker IPC; adapters keep model-only time in model_latency_seconds.
+                started = time.perf_counter()
                 raw = backend.predict(config.experiment_id, example)
+                raw = replace(raw, latency_seconds=time.perf_counter() - started)
                 # Keep the serving snapshot even if validation below rejects the prediction.
                 served_hint = raw.model_resolved if raw.model_resolved != "unknown" else None
                 prediction = _validate_prediction(raw)

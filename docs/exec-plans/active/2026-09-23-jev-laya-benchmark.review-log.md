@@ -392,3 +392,11 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R2 medium: dispatch history was lost across invocations → FIXED: attempt selection sums dispatch_attempts across every row of a key.
 - R3 medium: condition-B draws without a fittable T were dropped (success-conditioned) → FIXED: such draws use T = 1; confirmatory tests with an undefined estimate or fewer than the frozen usable draws get no Holm rejection. Rules written into PROTOCOL.
 - Regression tests added. **These fixes are not covered by a Codex inspection** (budget exhausted).
+
+### A6 build inspection 3 — user-approved extra round (2026-09-24)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-inspect3/claudex-1xesxkpj/result.json (cross_provider; base ff5aeb9; head 3d11c10) — REVISE
+- R1 high: a complete all-failure local attempt was unselectable → FIXED: accepted with the pinned checkpoint as provenance; Jev still needs one known snapshot.
+- R2 high: an unavailable condition B raised and stopped the report → FIXED: the bootstrap returns an "unavailable" result with no estimate and no Holm rejection; A results are still published.
+- R3 medium: the local latency boundary excluded prompt preparation and IPC → FIXED: the runner times every call at its own boundary; model-only time stays separate.
+- R4 medium: the latency row was dropped when every Jev call retried → FIXED: the row is kept with n=0, null quantiles and the retry share.
+- Rules added to PROTOCOL; regression tests added. Not yet re-inspected.

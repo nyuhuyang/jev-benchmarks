@@ -167,6 +167,15 @@ Bootstrap failure rules (build inspection):
   2,000, is reported without a Holm rejection.
 - Jev dispatch history is summed across every invocation of a prediction key: earlier failed
   attempts count in the retry share and exclude the key from the first-attempt latency reference.
+- If the observed calibration set of a contender has no successful vectors, its condition-B
+  contrasts are reported as unavailable (no estimate, no Holm rejection); condition-A results and
+  failure counts are still published.
+- A complete local attempt in which every call failed is scored with the failure penalties, with the
+  pinned checkpoint as provenance; Jev still needs one known snapshot.
+- Wall latency is measured by the runner around each call for every backend (including prompt
+  preparation and local worker IPC); adapters keep model-only time separately. The latency
+  reference row is published even when no call succeeded on its first attempt (n = 0, null
+  quantiles), so the retry share is always reported.
 
 ## Amendment 5: few-label arm, confirmatory set, framing
 

@@ -143,7 +143,10 @@ def _select_attempt(
         # Every call that received a response (success, unscorable or later retried) must share
         # one snapshot; calls with no response ("unknown") produced no output and score as failures.
         resolved = {row.model_resolved for row in rows if row.model_resolved != "unknown"}
-        if expected.issubset(latest) and len(resolved) == 1 and MISSING_MODEL not in resolved:
+        # Jev needs one known snapshot; a complete all-failure local attempt (no resolved model)
+        # is accepted so its failures are scored, with the pinned revision as provenance.
+        known = len(resolved) == 1 or (not resolved and backend != "jev_openrouter")
+        if expected.issubset(latest) and known and MISSING_MODEL not in resolved:
             return path, list(latest.values()), hashlib.sha256(data).hexdigest()
     raise ValueError(f"no complete single-snapshot attempt for {backend}")
 
@@ -164,7 +167,11 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         with _dispatch_lock(config.output_dir / backend):
             path, rows, digest = _select_attempt(config, backend, manifest)
         attempts[backend] = path.name
-        snapshots[backend] = next(row.model_resolved for row in rows if row.error is None)
+        model = config.raw["models"][backend]
+        pinned = f"{model.get('model_id', backend)}@{model.get('revision', 'unpinned')}"
+        snapshots[backend] = next(
+            (row.model_resolved for row in rows if row.model_resolved != "unknown"), pinned
+        )
         prediction_hashes[backend] = digest
         predictions[backend] = rows
     metric_rows: list[dict[str, Any]] = []
@@ -275,7 +282,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             first_try = [row for row in done if (row.dispatch_attempts or 1) == 1]
             # Every dispatched item counts toward the retry share, including final failures.
             dispatched = [row for row in test if row.error is None or row.dispatch_attempts]
-            if not splits.get("latency") and backend not in FEWSHOT_BACKENDS and first_try:
+            if not splits.get("latency") and backend not in FEWSHOT_BACKENDS and dispatched:
                 # Amendment 6 reference: first-attempt successes on the test split only.
                 model_times = [
                     row.model_latency_seconds
@@ -288,14 +295,20 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                         "dataset": dataset,
                         "workload": "test-reference",
                         "n": len(first_try),
+                        "dispatched": len(dispatched),
                         "retried_share": sum((row.dispatch_attempts or 1) > 1 for row in dispatched)
                         / len(dispatched),
+                        # n = 0 (every item retried or failed) keeps the row with null quantiles.
                         "latency_p50_seconds": float(
                             np.quantile([row.latency_seconds for row in first_try], 0.5)
-                        ),
+                        )
+                        if first_try
+                        else None,
                         "latency_p95_seconds": float(
                             np.quantile([row.latency_seconds for row in first_try], 0.95)
-                        ),
+                        )
+                        if first_try
+                        else None,
                         "model_p50_seconds": float(np.quantile(model_times, 0.5))
                         if model_times
                         else None,
