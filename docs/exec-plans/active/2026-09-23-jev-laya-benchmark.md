@@ -283,7 +283,7 @@ Source: the cross-provider-approved assessment `docs/exec-plans/active/2026-09-2
 - [x] CLI `jev-bench fewshot --config configs/v2.yaml --backend {qwen_probe,tfidf_lr,prior}`; refuses without the frozen manifest, like `run`.
 - [x] Report: include the few-label contenders as descriptive rows and pairwise-vs-Jev intervals; add the relation-to-public-results table source.
 - [x] Contract tests with fakes: no test label reaches fitting; out-of-fold coverage is exact; absent-class zero mapping; a Banking77-like case (72 classes, 2–3 items each) and a MASSIVE-like case run; TF-IDF vocabulary is per-fold (a held-out-only token has no feature); deterministic output for a fixed seed; features hash recorded; prior frequencies; latency fields absent for few-label rows.
-- [ ] `configs/v2.yaml`: few-label contender entries (done), and the confirmatory family filled after the probe — BLOCKED: synthetic probe still running
+- [x] `configs/v2.yaml`: few-label contender entries, and the confirmatory family (k=9) filled from the probe
 - [x] `PROTOCOL-v2.md`: few-label section, confirmatory set, priors, framing.
 - [x] Budget ledger hardening (D) in `jev_openrouter.py` and `v2_runner.py`, with its contract tests.
 

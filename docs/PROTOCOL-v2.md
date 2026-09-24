@@ -1,8 +1,8 @@
 # Jev–Laya–Qwen benchmark v2 protocol
 
-Status: **draft, not preregistered**. Fill every `TO-FILL-AFTER-PROBE` field after the pinned
-synthetic capability checks, then freeze this document, the configs and manifest hashes under
-`v2-preregistered` before test inference.
+Status: **draft, not preregistered**. Probe-dependent fields are filled from the pinned
+synthetic capability checks. Next: prepare the manifest, then freeze this document, the configs
+and the manifest hashes under `v2-preregistered` before any benchmark inference.
 
 ## Question and hypotheses
 
@@ -16,14 +16,40 @@ Holm family.
 
 ## Artifacts and capability gate
 
-The immutable model and dataset revisions are in `configs/v2.yaml`. Exact revisions and local
-snapshot paths: **TODO-PIN**. Synthetic probe observations for Laya score/noul output shapes,
-complete option head sizes, full-request token lengths, Qwen rendered suffixes and the Laya
-package-source review: **TO-FILL-AFTER-PROBE**. Any remote `.py` import by Laya is a stop for that
-track. The confirmatory three-way dataset set is **TO-FILL-AFTER-PROBE**. If fewer than three
-English datasets qualify, C2/C3 leave the family and C1 uses the Jev–Qwen intersection. Exact
-confirmatory test IDs, their dataset sets and Holm denominator `k` (9 or 3):
-**TO-FILL-AFTER-PROBE**. The frozen list must also be copied into `configs/v2.yaml`.
+The immutable model and dataset revisions and the local snapshot paths are in `configs/v2.yaml`:
+- Laya `aa8c91c`;
+- Qwen3-1.7B `70d244c`;
+- GLiNER `235cf92`;
+- datasets: BTZSC `fef2a2a`, SMS Spam `cae486f`, Civil Comments `f2970eb`, MASSIVE `ed58ac4`,
+  UltraFeedback `40b4365`.
+
+The pinned synthetic probe ran at tag `v2-probe` (commit `8720bb5`) on synthetic strings only. Its
+results are in `results/runs/jev-laya-v2/probe-results.json`, which is not committed:
+- **Laya output shapes:** noul returns a full two-way vector and score a full five-level
+  distribution, so condition B is available for every Laya track. Choice returns the full label
+  vector. All tracks ran on MPS.
+- **Laya option head:** the primary head is `max(shipped head, sum(options) + max(instruction,
+  16))`:
+  - English base: 192 on all its datasets;
+  - typed-decisions: 256;
+  - multilingual on MASSIVE: 591.
+  - Banking77 is N/A for both English tracks (a ~1,280-token head is needed).
+  - The pinned snapshot JSON files were unchanged after loading.
+- **Full-request length exclusions** (whole candidate pools):
+  - Civil Comments: 233 of 1,804,874 (Laya base 512 budget);
+  - UltraFeedback: 201 of 12,600;
+  - none elsewhere.
+- **Qwen rendered suffixes:** single-token `" A"`-style IDs after `"Answer:"` (`letter` mode) on
+  AG News, Emotion, SMS Spam, Civil Comments and UltraFeedback; two-token IDs after `"Answer: "`
+  (`two_digit_joint`) on Banking77 and MASSIVE. A duplicate call returned an identical vector on
+  MPS.
+- **Laya package source:** only `rl_agent_config.json`, `model.safetensors`, `tokenizer/*` and
+  `encoder/*` are loaded; no remote Python is executed (source sha256 `d8945fed…`).
+
+**Confirmatory family (frozen, k = 9).** The three-way set is AG News, DAIR Emotion, SMS Spam and
+Civil Comments. The tests are C1 Jev–Qwen, C2 Jev–Laya-base and C3 Qwen–Laya-base, each × {accuracy
+A_raw, Brier A_raw, Brier B_scaled}. The same list is in `configs/v2.yaml`
+(`confirmatory_family`).
 
 ## Data and exclusions
 

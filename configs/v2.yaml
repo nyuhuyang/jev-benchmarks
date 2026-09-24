@@ -169,17 +169,15 @@ models:
     datasets:
     - agnews
     - emotiondair
-    - banking77
     - sms_spam
     - civil_comments
     - ultrafeedback_helpfulness
     head_max_len:
-      agnews: TO-FILL-AFTER-PROBE
-      emotiondair: TO-FILL-AFTER-PROBE
-      banking77: TO-FILL-AFTER-PROBE
-      sms_spam: TO-FILL-AFTER-PROBE
-      civil_comments: TO-FILL-AFTER-PROBE
-      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
+      agnews: 192
+      emotiondair: 192
+      sms_spam: 192
+      civil_comments: 192
+      ultrafeedback_helpfulness: 192
   laya_multilingual:
     model_id: convaiinnovations/laya
     revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
@@ -192,9 +190,9 @@ models:
     - massive_zh
     - massive_km
     head_max_len:
-      massive_en: TO-FILL-AFTER-PROBE
-      massive_zh: TO-FILL-AFTER-PROBE
-      massive_km: TO-FILL-AFTER-PROBE
+      massive_en: 591
+      massive_zh: 591
+      massive_km: 591
   laya_typed:
     model_id: convaiinnovations/laya
     revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
@@ -205,17 +203,15 @@ models:
     datasets:
     - agnews
     - emotiondair
-    - banking77
     - sms_spam
     - civil_comments
     - ultrafeedback_helpfulness
     head_max_len:
-      agnews: TO-FILL-AFTER-PROBE
-      emotiondair: TO-FILL-AFTER-PROBE
-      banking77: TO-FILL-AFTER-PROBE
-      sms_spam: TO-FILL-AFTER-PROBE
-      civil_comments: TO-FILL-AFTER-PROBE
-      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
+      agnews: 256
+      emotiondair: 256
+      sms_spam: 256
+      civil_comments: 256
+      ultrafeedback_helpfulness: 256
   qwen_logit:
     model_id: Qwen/Qwen3-1.7B
     revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
@@ -242,15 +238,15 @@ models:
 
       '
     score_modes:
-      agnews: TO-FILL-AFTER-PROBE
-      emotiondair: TO-FILL-AFTER-PROBE
-      banking77: TO-FILL-AFTER-PROBE
-      sms_spam: TO-FILL-AFTER-PROBE
-      civil_comments: TO-FILL-AFTER-PROBE
-      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
-      massive_en: TO-FILL-AFTER-PROBE
-      massive_zh: TO-FILL-AFTER-PROBE
-      massive_km: TO-FILL-AFTER-PROBE
+      agnews: letter
+      emotiondair: letter
+      banking77: two_digit_joint
+      sms_spam: letter
+      civil_comments: letter
+      ultrafeedback_helpfulness: letter
+      massive_en: two_digit_joint
+      massive_zh: two_digit_joint
+      massive_km: two_digit_joint
   gliner:
     model_id: fastino/gliner2.5-multi-v1
     revision: 235cf92d6d4318da9bfca0d08975c8fa7250d13b
@@ -317,6 +313,60 @@ metrics:
   failure_nll: 5.298317366548036
   holm_alpha: 0.05
 confirmatory_family:
-  k: TO-FILL-AFTER-PROBE
-  datasets: TO-FILL-AFTER-PROBE
-  tests: []
+  k: 9
+  datasets: [agnews, emotiondair, sms_spam, civil_comments]
+  tests:
+  - id: C1-accuracy
+    left: jev_openrouter
+    right: qwen_logit
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: accuracy
+    condition: A_raw
+  - id: C1-brier-A
+    left: jev_openrouter
+    right: qwen_logit
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: A_raw
+  - id: C1-brier-B
+    left: jev_openrouter
+    right: qwen_logit
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: B_scaled
+  - id: C2-accuracy
+    left: jev_openrouter
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: accuracy
+    condition: A_raw
+  - id: C2-brier-A
+    left: jev_openrouter
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: A_raw
+  - id: C2-brier-B
+    left: jev_openrouter
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: B_scaled
+  - id: C3-accuracy
+    left: qwen_logit
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: accuracy
+    condition: A_raw
+  - id: C3-brier-A
+    left: qwen_logit
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: A_raw
+  - id: C3-brier-B
+    left: qwen_logit
+    right: laya_base
+    datasets: [agnews, emotiondair, sms_spam, civil_comments]
+    metric: brier
+    condition: B_scaled
