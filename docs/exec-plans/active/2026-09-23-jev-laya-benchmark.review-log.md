@@ -323,3 +323,11 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R3 medium: attempt state and pending work were computed before the Jev lock → FIXED: a per-backend `dispatch.lock` (flock) is held across attempt selection, pending computation and dispatch.
 - R4 medium: absent-class counts were not reported → FIXED: v2.json `few_label_absent_class_held_out_rows` and a v2.md section.
 - Regression tests added for each. **These fixes are NOT covered by a Codex inspection** (budget exhausted); another fresh inspection needs user approval.
+
+### A5 build inspection 3 — Codex (fresh, user-approved extra round) — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-inspect3/claudex-dmjnjksz/result.json (cross_provider; base 0ee429b; head 72a468b)
+- R1 high: a billed 2xx without `model` was recorded as "unknown" and ignored by provenance → FIXED: `JevResponseError` carries `response-without-model`; attempt selection rejects any attempt containing it.
+- R2 high: the report selected rows and hashed the file at different times → FIXED: selection runs under the backend's dispatch lock, and `prediction_sha256` is the hash of the exact bytes parsed.
+- R3 medium: the few-label run took no lock and wrote features non-atomically → FIXED: `run_fewshot` holds the per-backend dispatch lock; features are written to `.tmp` and published with `replace`.
+- R4 medium: the Qwen `latency-10` batch repeated one prompt → N/A: Amendment 6 (user-approved) removes the latency suite, so no latency-10 rows exist.
+- Regression tests added for R1–R3. These fixes are not yet re-inspected.

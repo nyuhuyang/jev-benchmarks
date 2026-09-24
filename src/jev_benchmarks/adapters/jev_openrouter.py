@@ -26,6 +26,10 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+# A response arrived but named no model: its provenance is unverifiable.
+MISSING_MODEL = "response-without-model"
+
+
 class JevResponseError(RuntimeError):
     """A response that could not be scored, carrying the snapshot that served it."""
 
@@ -300,7 +304,7 @@ class JevOpenRouterBackend:
         except Exception as exc:
             # Keep the serving snapshot on unscorable 2xx responses for provenance checks.
             raise JevResponseError(
-                f"{type(exc).__name__}: {exc}", str(served) if served else None
+                f"{type(exc).__name__}: {exc}", str(served) if served else MISSING_MODEL
             ) from exc
 
     def _parse(

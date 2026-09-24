@@ -108,7 +108,10 @@ def _features(
 
                 extractor = LocalProcessBackend(config, "qwen_logit", attempt)
             matrix = np.asarray([extractor.features(row, layer) for row in wanted], np.float32)
-            np.savez(path, ids=np.asarray([row.example_id for row in wanted]), x=matrix)
+            temporary = path.with_suffix(".tmp")
+            with temporary.open("wb") as handle:
+                np.savez(handle, ids=np.asarray([row.example_id for row in wanted]), x=matrix)
+            temporary.replace(path)  # publish atomically
         stored = np.load(path)
         by_id.update(zip(stored["ids"].tolist(), stored["x"], strict=True))
     if extractor is not None and hasattr(extractor, "close"):
@@ -117,6 +120,16 @@ def _features(
 
 
 def run_fewshot(config: BenchmarkConfig, backend: str, *, feature_extractor: Any = None) -> Path:
+    from .v2_runner import _dispatch_lock
+
+    if backend not in FEWSHOT_BACKENDS or backend not in config.raw["models"]:
+        raise ValueError(f"unknown few-label backend: {backend}")
+    # Attempt selection, feature extraction and publication run under the per-backend lock.
+    with _dispatch_lock(config.output_dir / backend):
+        return _run_fewshot(config, backend, feature_extractor)
+
+
+def _run_fewshot(config: BenchmarkConfig, backend: str, feature_extractor: Any) -> Path:
     from .v2_runner import _attempt_dir, verify_frozen
 
     if backend not in FEWSHOT_BACKENDS or backend not in config.raw["models"]:

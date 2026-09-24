@@ -337,3 +337,35 @@ def test_dispatch_lock_refuses_an_overlapping_run(tmp_path: Path) -> None:
                 pass
     with _dispatch_lock(tmp_path / "jev_openrouter"):
         pass
+
+
+def test_response_without_model_blocks_confirmatory_selection(tmp_path: Path) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import MISSING_MODEL
+
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
+    rows = [
+        replace(report_prediction("qwen_logit", row), model_resolved=MISSING_MODEL, error="x")
+        for row in manifest
+    ]
+    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "qwen_logit", manifest)
+
+
+def test_report_and_fewshot_refuse_while_a_run_holds_the_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import _dispatch_lock
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    with _dispatch_lock(cfg.output_dir / "jev_openrouter"):
+        with pytest.raises(RuntimeError, match="dispatch lock"):
+            build_v2_report(cfg)
+    few = fewshot_config(tmp_path / "few", rows(0))
+    with _dispatch_lock(few.output_dir / "prior"):
+        with pytest.raises(RuntimeError, match="dispatch lock"):
+            run_fewshot(few, "prior")

@@ -158,3 +158,14 @@ def test_unscorable_2xx_keeps_the_serving_snapshot(tmp_path: Path) -> None:
         jev.predict("run", ROW)
     assert error.value.model_resolved == "jev-new"
     jev.close()
+
+
+def test_billed_response_without_model_is_marked_unverifiable(tmp_path: Path) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import MISSING_MODEL, JevResponseError
+
+    body = {"usage": {"cost": 0.001}, "answers": {}}
+    jev = backend(tmp_path / "budget-ledger.jsonl", lambda *_: (200, {}, body))
+    with pytest.raises(JevResponseError) as error:
+        jev.predict("run", ROW)
+    assert error.value.model_resolved == MISSING_MODEL
+    jev.close()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 from collections import defaultdict
@@ -10,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from .adapters.jev_openrouter import MISSING_MODEL
 from .config import BenchmarkConfig
 from .fewshot import FEWSHOT_BACKENDS
 from .io import read_jsonl, runtime_metadata, scrubbed_json, sha256_file
@@ -28,7 +30,7 @@ from .v2_metrics import (
     score_v2,
     select_threshold,
 )
-from .v2_runner import prediction_key, verify_frozen
+from .v2_runner import _dispatch_lock, prediction_key, verify_frozen
 
 
 def _gliner_exclusions(config: BenchmarkConfig) -> list[str]:
@@ -76,7 +78,8 @@ def _csv(path: Path, rows: list[dict[str, Any]], secret: str | None) -> None:
 
 def _select_attempt(
     config: BenchmarkConfig, backend: str, manifest: list[Example]
-) -> tuple[Path, list[Prediction]]:
+) -> tuple[Path, list[Prediction], str]:
+    """Newest complete single-snapshot attempt, its rows, and the sha256 of the exact bytes read."""
     excluded = set(_gliner_exclusions(config)) if backend == "gliner" else set()
     expected = {
         (*prediction_key(example)[:4], repeat)
@@ -90,7 +93,11 @@ def _select_attempt(
         (row.split, row.example_id, row.permutation_id, row.letter_mode): row for row in manifest
     }
     for path in sorted((config.output_dir / backend).glob("attempt-*"), reverse=True):
-        rows = [Prediction.from_dict(row) for row in read_jsonl(path / "predictions.jsonl")]
+        file = path / "predictions.jsonl"
+        data = file.read_bytes() if file.exists() else b""
+        rows = [
+            Prediction.from_dict(json.loads(line)) for line in data.decode().splitlines() if line
+        ]
         for row in rows:
             source = contract.get(prediction_key(row)[:4])
             if source is None or (
@@ -112,8 +119,8 @@ def _select_attempt(
         # Every call that received a response (success, unscorable or later retried) must share
         # one snapshot; calls with no response ("unknown") produced no output and score as failures.
         resolved = {row.model_resolved for row in rows if row.model_resolved != "unknown"}
-        if expected.issubset(latest) and len(resolved) == 1:
-            return path, list(latest.values())
+        if expected.issubset(latest) and len(resolved) == 1 and MISSING_MODEL not in resolved:
+            return path, list(latest.values()), hashlib.sha256(data).hexdigest()
     raise ValueError(f"no complete single-snapshot attempt for {backend}")
 
 
@@ -129,10 +136,12 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     prediction_hashes: dict[str, str] = {}
     predictions: dict[str, list[Prediction]] = {}
     for backend in config.raw["models"]:
-        path, rows = _select_attempt(config, backend, manifest)
+        # Read, select and hash under the dispatch lock: no run may append meanwhile.
+        with _dispatch_lock(config.output_dir / backend):
+            path, rows, digest = _select_attempt(config, backend, manifest)
         attempts[backend] = path.name
         snapshots[backend] = next(row.model_resolved for row in rows if row.error is None)
-        prediction_hashes[backend] = sha256_file(path / "predictions.jsonl")
+        prediction_hashes[backend] = digest
         predictions[backend] = rows
     metric_rows: list[dict[str, Any]] = []
     gliner_excluded = _gliner_exclusions(config) if "gliner" in config.raw["models"] else []
