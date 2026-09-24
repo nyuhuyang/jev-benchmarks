@@ -169,3 +169,19 @@ def test_billed_response_without_model_is_marked_unverifiable(tmp_path: Path) ->
         jev.predict("run", ROW)
     assert error.value.model_resolved == MISSING_MODEL
     jev.close()
+
+
+def test_pause_is_rebuilt_from_the_ledger_until_an_operator_clears_it(tmp_path: Path) -> None:
+    path = tmp_path / "budget-ledger.jsonl"
+    jev = backend(path, lambda *_: (200, {}, answer("NaN")))
+    with pytest.raises(RuntimeError, match="valid usage"):
+        jev.predict("run", ROW)
+    jev.close()
+    restarted = Budget(ledger=BudgetLedger(path))
+    assert restarted.paused  # a crash or restart cannot silently resume dispatch
+    restarted.close()
+    with path.open("a") as handle:
+        handle.write(json.dumps({"event": "pause_cleared"}) + "\n")
+    cleared = Budget(ledger=BudgetLedger(path))
+    assert not cleared.paused and cleared.settled > 0  # liability kept, pause lifted
+    cleared.close()

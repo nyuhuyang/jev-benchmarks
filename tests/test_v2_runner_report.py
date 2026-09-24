@@ -356,6 +356,7 @@ def test_gliner_excluded_dataset_is_not_expected_from_attempt(tmp_path: Path) ->
     write_jsonl(
         attempt / "predictions.jsonl", [prediction("gliner", row).to_dict() for row in rows]
     )
+    (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
     selected, predictions, _ = _select_attempt(cfg, "gliner", manifest)
     assert selected == attempt
     assert len(predictions) == len(rows)

@@ -439,3 +439,10 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-inspect1/claudex-21pbf8b0/result.json (cross_provider; base 35568e0; head 8e76aef) — REVISE
 - F1 medium: verify_frozen accepted records missing the new hashes → FIXED: all six hashes required; missing or TO-FILL values refused; each artifact checked (test covers every key and every artifact).
 - F2 medium: score accuracy is not temperature-invariant → FIXED: the secondary headline adds B-scaled accuracy rows for score datasets only; the protocol limits the invariance claim to choice/noul.
+
+### A7 build inspection 2 — Codex (fresh), base 35568e0
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-inspect2/claudex-btkxz3g6/result.json (cross_provider; base 35568e0; head 67be976) — REVISE (A7 inspection budget 2/2 used)
+- R1 high: a cost pause could be lost in a crash between the prediction and status writes, and was not rebuilt on restart → FIXED: status is written before the row; the ledger records pause=true and Budget rebuilds paused until an operator appends pause_cleared; the report accepts only status=active attempts.
+- R2 medium: all-failed order calls reported as stable → FIXED: only successful order calls count toward completeness.
+- R3 medium: MASSIVE prevalence mis-described → FIXED (documentation): stated as pre-assignment prevalence for later locales.
+- Regression tests added. **These fixes are not covered by a Codex inspection** (budget exhausted).

@@ -424,9 +424,11 @@ def _dispatch(
                     attempt_id=int(attempt.name.split("-")[-1]),
                     dispatch_attempts=getattr(backend, "last_dispatch_attempts", None) or None,
                 )
-            append_jsonl(output, prediction.to_dict(), secret=secret)
-            if getattr(getattr(backend, "budget", None), "paused", False):
+            paused = getattr(getattr(backend, "budget", None), "paused", False)
+            if paused:  # persist the pause before the row, so a crash cannot lose it
                 write_json(attempt / "status.json", {"state": "cost_paused"}, secret=secret)
+            append_jsonl(output, prediction.to_dict(), secret=secret)
+            if paused:
                 raise RuntimeError("cost dispatch paused pending operator review")
     finally:
         backend.close()

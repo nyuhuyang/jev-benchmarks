@@ -71,7 +71,10 @@ on class prevalence, and the natural rates differ sharply (for example 13.4% spa
 8.0% toxic in Civil Comments). Coverage therefore means "share of balanced test items automated",
 not deployment traffic. The class prevalence of each dataset's sampled population (one representative per content group)
 is recorded in `manifest-summary.json` as `pool_class_prevalence`, with raw-candidate prevalence
-kept separately. The summary is part of the freeze record (`manifest_summary_sha256`), as is
+kept separately. For MASSIVE zh-CN and km-KH this is the pre-assignment prevalence: cross-locale
+split assignments made for earlier locales further restrict which groups each split can draw.
+Order effects are computed only when every required order call succeeded; otherwise they are
+reported as unavailable with the number of successful calls. The summary is part of the freeze record (`manifest_summary_sha256`), as is
 `docs/public-results.csv` (`public_results_sha256`), which the report checks and records.
 Comparisons with public results list each source's sampling distribution. The three sets are disjoint. Single-source
 BTZSC and SMS Spam splits are carved into those sets. NFKC/lowercase/whitespace-collapsed/
@@ -232,6 +235,10 @@ Bootstrap failure rules (build inspection):
   failure counts are still published.
 - A complete local attempt in which every call failed is scored with the failure penalties, with the
   pinned checkpoint as provenance; Jev still needs one known snapshot.
+- A Jev cost pause (a 2xx without a valid cost) is written to the attempt status before the
+  prediction row and rebuilt from the budget ledger on restart. It stays in force until an
+  operator reviews it and appends `{"event": "pause_cleared"}` to the ledger. Only attempts whose
+  last run finished cleanly (status `active`) are eligible for the report.
 - Wall latency is measured by the runner around each call for every backend (including prompt
   preparation and local worker IPC); adapters keep model-only time separately. The latency
   reference row is published even when no call succeeded on its first attempt (n = 0, null

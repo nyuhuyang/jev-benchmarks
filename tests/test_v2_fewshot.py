@@ -21,6 +21,12 @@ from jev_benchmarks.models import Example
 from jev_benchmarks.v2_report import _select_attempt, build_v2_report, vector_datasets
 
 
+def write_attempt(path: Path, rows: list) -> None:
+    """Write an attempt's predictions and mark its run as cleanly finished."""
+    write_jsonl(path, rows)
+    (path.parent / "status.json").write_text('{"state":"active"}', encoding="utf-8")
+
+
 class Spy:
     """Records what each model instance is fitted on and asked to predict."""
 
@@ -208,7 +214,7 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
                 probabilities=(),
                 dispatch_attempts=3,
             )
-        write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
+        write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
         (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
     (cfg.output_dir / "prior" / "attempt-1" / "fewshot-metadata.json").write_text(
         '{"absent_class_held_out_rows": {"agnews": 3}}', encoding="utf-8"
@@ -286,11 +292,11 @@ def test_attempt_with_an_unscorable_call_from_another_snapshot_is_rejected(tmp_p
     attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
     rows = [report_prediction("qwen_logit", row) for row in manifest]
     rows[0] = replace(rows[0], model_resolved="snapshot-2", error="JevResponseError: bad answers")
-    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
     with pytest.raises(ValueError, match="single-snapshot"):
         _select_attempt(cfg, "qwen_logit", manifest)
     rows[0] = replace(rows[0], model_resolved="unknown", error="TimeoutError")
-    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
     assert _select_attempt(cfg, "qwen_logit", manifest)[0] == attempt
 
 
@@ -354,7 +360,7 @@ def test_retried_rows_from_another_snapshot_reject_the_attempt(tmp_path: Path) -
     attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
     rows = [replace(report_prediction("qwen_logit", row), model_resolved="B") for row in manifest]
     earlier = replace(rows[0], model_resolved="A", error="JevResponseError: bad answers")
-    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in [earlier, *rows]])
+    write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in [earlier, *rows]])
     with pytest.raises(ValueError, match="single-snapshot"):
         _select_attempt(cfg, "qwen_logit", manifest)
 
@@ -380,7 +386,7 @@ def test_response_without_model_blocks_confirmatory_selection(tmp_path: Path) ->
         replace(report_prediction("qwen_logit", row), model_resolved=MISSING_MODEL, error="x")
         for row in manifest
     ]
-    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
     with pytest.raises(ValueError, match="single-snapshot"):
         _select_attempt(cfg, "qwen_logit", manifest)
 
@@ -484,7 +490,7 @@ def test_newest_attempt_is_chosen_numerically(tmp_path: Path) -> None:
             replace(report_prediction("qwen_logit", row), model_resolved=snapshot)
             for row in manifest
         ]
-        write_jsonl(
+        write_attempt(
             cfg.output_dir / "qwen_logit" / f"attempt-{number}" / "predictions.jsonl",
             [row.to_dict() for row in rows],
         )
@@ -532,7 +538,7 @@ def test_dispatch_history_spans_earlier_failed_invocations(tmp_path: Path) -> No
     rows = [report_prediction("qwen_logit", row) for row in manifest]
     failed = replace(rows[4], error="RuntimeError: HTTP 503", probabilities=(), dispatch_attempts=3)
     retried = replace(rows[4], dispatch_attempts=1)
-    write_jsonl(
+    write_attempt(
         cfg.output_dir / "qwen_logit" / "attempt-1" / "predictions.jsonl",
         [row.to_dict() for row in [*rows[:4], failed, retried, *rows[5:]]],
     )
@@ -579,7 +585,7 @@ def test_complete_all_failure_local_attempt_is_scored_but_jev_is_not(tmp_path: P
             for row in manifest
             for repeat in range(repeats)
         ]
-        write_jsonl(
+        write_attempt(
             cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
             [row.to_dict() for row in rows],
         )
@@ -652,7 +658,7 @@ def test_latency_reference_row_survives_when_every_call_was_retried(
             for repeat in range(model["repeats"])
         ]
         attempt = cfg.output_dir / backend / "attempt-1"
-        write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
+        write_attempt(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
     json_path, _ = build_v2_report(cfg)
     with (json_path.parent / "latency.csv").open() as handle:
         jev = next(row for row in csv.DictReader(handle) if row["backend"] == "jev_openrouter")
@@ -676,7 +682,7 @@ def test_cost_paused_attempt_is_not_reported(tmp_path: Path) -> None:
     cfg = report_config(tmp_path)
     manifest = report_examples()
     attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
-    write_jsonl(
+    write_attempt(
         attempt / "predictions.jsonl",
         [report_prediction("qwen_logit", row).to_dict() for row in manifest],
     )
@@ -710,7 +716,7 @@ def test_incomplete_permutations_and_all_failure_latency_are_reported(
             rows = [
                 replace(row, error="x", probabilities=(), model_resolved="unknown") for row in rows
             ]
-        write_jsonl(
+        write_attempt(
             cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
             [row.to_dict() for row in rows],
         )
@@ -796,7 +802,7 @@ def test_report_orders_like_for_like_first_with_per_dataset_rows(
     write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
     monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
     for backend, model in cfg.raw["models"].items():
-        write_jsonl(
+        write_attempt(
             cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
             [
                 report_prediction(backend, row, repeat).to_dict()
@@ -818,3 +824,79 @@ def test_report_orders_like_for_like_first_with_per_dataset_rows(
     assert len(ids) == len(set(ids))  # reused C1 headline rows are not emitted twice
     text = md_path.read_text()
     assert "class-balanced test items" in text and "Per-dataset paired differences" in text
+
+
+def test_pause_status_is_written_before_the_prediction_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Jev:
+        budget = SimpleNamespace(paused=True)
+
+        def predict(self, experiment_id, row):
+            return report_prediction("jev_openrouter", row)
+
+        def close(self):
+            return None
+
+    def crash(*args, **kwargs):
+        raise KeyboardInterrupt  # the process dies while writing the prediction row
+
+    monkeypatch.setattr("jev_benchmarks.v2_runner.append_jsonl", crash)
+    with pytest.raises(KeyboardInterrupt):
+        run_v2_backend(cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev())
+    status = cfg.output_dir / "jev_openrouter" / "attempt-1" / "status.json"
+    assert json.loads(status.read_text())["state"] == "cost_paused"
+
+
+def test_attempt_without_a_clean_finish_is_not_reported(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    write_jsonl(
+        cfg.output_dir / "qwen_logit" / "attempt-1" / "predictions.jsonl",
+        [report_prediction("qwen_logit", row).to_dict() for row in manifest],
+    )
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "qwen_logit", manifest)
+
+
+def test_all_failed_order_calls_do_not_count_as_stable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = report_config(tmp_path)
+    protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
+    protocol.parent.mkdir()
+    protocol.write_text("frozen protocol", encoding="utf-8")
+    base = report_examples()
+    orders = [
+        replace(row, split="permutation", permutation_id=f"order-{i}")
+        for row in base[4:6]
+        for i in range(4)
+    ]
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in base + orders])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    for backend, model in cfg.raw["models"].items():
+        rows = [
+            report_prediction(backend, row, repeat)
+            for row in base + orders
+            for repeat in range(model["repeats"])
+        ]
+        rows = [
+            replace(row, error="x", probabilities=(), predicted_index=-1)
+            if row.split == "permutation"
+            else row
+            for row in rows
+        ]
+        write_attempt(
+            cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
+            [row.to_dict() for row in rows],
+        )
+    json_path, _ = build_v2_report(cfg)
+    with (json_path.parent / "flip.csv").open() as handle:
+        flips = list(csv.DictReader(handle))
+    assert {row["unavailable"] for row in flips} == {"permutation run incomplete: 0/8"}

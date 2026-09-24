@@ -98,6 +98,8 @@ class BudgetLedger:
         reserved: dict[str, float] = {}
         closed: dict[str, float | None] = {}
         for row in read_jsonl(self.path):
+            if row["event"] == "pause_cleared":  # operator note; carries no liability
+                continue
             txn, event = str(row["txn"]), row["event"]
             if event == "reserved":
                 if txn in reserved:
@@ -121,6 +123,16 @@ class BudgetLedger:
             paid if (paid := closed.get(txn)) is not None else amount
             for txn, amount in reserved.items()
         )
+
+    def paused(self) -> bool:
+        """A pausing retention stays in force until an operator appends ``pause_cleared``."""
+        state = False
+        for row in read_jsonl(self.path):
+            if row["event"] == "retained" and row.get("pause"):
+                state = True
+            elif row["event"] == "pause_cleared":
+                state = False
+        return state
 
     def append(self, row: dict[str, Any]) -> None:
         append_jsonl(self.path, row, secret=self.secret)
@@ -146,7 +158,7 @@ class Budget:
         self.ledger = ledger
         self.settled = ledger.liability() if ledger else 0.0
         self.reserved = 0.0
-        self.paused = False
+        self.paused = ledger.paused() if ledger else False  # survives a crash or restart
         self._lock = threading.Lock()
 
     def reserve(self, body: bytes, txn: str | None = None) -> float:
@@ -168,7 +180,7 @@ class Budget:
         with self._lock:
             if cost is None:
                 if self.ledger and txn:
-                    self.ledger.append({"event": "retained", "txn": txn})
+                    self.ledger.append({"event": "retained", "txn": txn, "pause": pause})
                 self.paused = self.paused or pause
                 return
             if self.ledger and txn:

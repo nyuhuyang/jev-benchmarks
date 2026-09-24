@@ -128,12 +128,12 @@ def _select_attempt(
             ):
                 raise ValueError(f"{backend} prediction contract mismatch: {row.example_id}")
         status = path / "status.json"
-        if status.exists() and json.loads(status.read_text(encoding="utf-8"))["state"] in {
-            "snapshot_changed",
-            "cost_paused",
-            "cost_exhausted",
-        }:
-            # A paused or exhausted attempt needs operator resolution before it can be reported.
+        # Only an attempt whose last run finished cleanly ("active") is eligible; paused,
+        # exhausted, changed or interrupted attempts need operator resolution first.
+        if (
+            not status.exists()
+            or json.loads(status.read_text(encoding="utf-8"))["state"] != "active"
+        ):
             continue
         latest: dict[tuple[str, str, str, str, int], Prediction] = {}
         dispatches: dict[tuple[str, str, str, str, int], int] = defaultdict(int)
@@ -338,7 +338,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 and (row.letter_mode != "positional" or backend == "qwen_logit")
             }
             observed_orders = {
-                (row.example_id, row.permutation_id, row.letter_mode) for row in order_rows
+                (row.example_id, row.permutation_id, row.letter_mode)
+                for row in order_rows
+                if row.error is None  # failed calls cannot show order stability
             }
             if backend not in FEWSHOT_BACKENDS and not expected_orders <= observed_orders:
                 flip_rows.append(
