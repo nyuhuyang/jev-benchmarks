@@ -260,9 +260,9 @@ The user enabled the CCFA research workflow. `ccf-paper-reviewer` (scientific mo
   - **F1:** per-dataset rows are emitted once per unique parent (the reused C1 headline rows share the C1 parent).
   - **F2:** `docs/public-results.csv` is bound by `public_results_sha256` in the freeze record, checked by `verify_frozen`, and its hash is recorded in v2.json.
   - **F3:** the Brier wording is corrected: range [0, 2] for every K, while the chance baseline 1 − 1/K differs. CCFA C005 was narrowed accordingly.
-- [ ] Codex plan review A7 to APPROVED.
-- [ ] Fresh Codex code inspection of the Amendment 7 changes.
-- [ ] Freeze: `prepare`, fill `v2-freeze.json` (including `probe_results_sha256`), tag `v2-preregistered`.
+- [x] Codex plan review A7 to APPROVED (round 3, cross_provider).
+- [x] Fresh Codex code inspections of Amendment 7 (4 rounds; last fixes e26a9a2 not re-inspected, user chose to freeze).
+- [x] Freeze: `prepare` (5,570 manifest rows), six-hash `v2-freeze.json`, tag `v2-preregistered`; P3.0 GLiNER anchor PASS (`results/reports/anchor-v2-comparison.json`).
 - [ ] P5 `ccf-integrity-auditor` pass on the report, and P6 `ccf-paper-reviewer` pass on the Rmd.
 
 ### Amendment 6 — scope cut and headline question (user-approved 2026-09-24)

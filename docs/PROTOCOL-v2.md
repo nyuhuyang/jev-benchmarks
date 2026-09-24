@@ -1,8 +1,10 @@
 # Jev–Laya–Qwen benchmark v2 protocol
 
-Status: **draft, not preregistered**. Probe-dependent fields are filled from the pinned
-synthetic capability checks. Next: prepare the manifest, then freeze this document, the configs
-and the manifest hashes under `v2-preregistered` before any benchmark inference.
+Status: **preregistered** under git tag `v2-preregistered`, before any benchmark inference. The
+freeze record `configs/v2-freeze.json` holds the sha256 of the config, manifest, manifest summary,
+this protocol, `docs/public-results.csv` and `results/reports/probe-v2.json`, and every run and
+report checks them. The P3.0 GLiNER anchor reproduced the upstream pilot-v1 exactly
+(`results/reports/anchor-v2-comparison.json`).
 
 ## Question and hypotheses
 
@@ -280,6 +282,11 @@ Bootstrap failure rules (build inspection):
 - Pinned Laya snapshot JSON files were hashed before and after the synthetic probe and were
   unchanged, so `_fix_tokenizer_config` did not mutate the pinned artifacts.
 - GLiNER score items use nominal five-class probabilities (descriptive only), not `ordinal()`.
+- gliner2 2.0.0 fetches `encoder_config/config.json` at revision `main` instead of the pinned
+  revision. Local backends run offline, so the pinned cache carries `refs/main` pointing at
+  `235cf92`, and "main" can only resolve to the pinned snapshot.
+- The pilot-v1 anchor manifest was regenerated from the pinned config and written in its original
+  seven-field v1 format; its sha256 equals the upstream report's `manifest_sha256` (`ec064c52…`).
 - Dataset loads that use `data_files` (MASSIVE, UltraFeedback) need Hub metadata resolution;
   `HF_HUB_OFFLINE=1` fails for them, so preparation runs online with pinned revisions.
 

@@ -459,3 +459,8 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - A7I4-F1 high: a crash-left "running" attempt could be reused after pause_cleared → FIXED: ledger records carry the attempt name; paused_attempts() marks every attempt that ever received a pausing retention, and it is never reused (_attempt_dir starts a new one) or reported (_select_attempt skips it).
 - A7I4-F2 medium: a complete attempt left "running" by a crash could never be reported → FIXED: a rerun with no pending work finalizes it to "active" (safe, because _attempt_dir never returns a pause-exposed attempt).
 - Tests added; suite passes (coverage 91.50%). Not yet re-inspected.
+
+## Freeze (2026-09-24) — user-authorized
+- User: "推送到 fork（7 个提交），然后进入冻结：运行 prepare，填入冻结记录需要的 6 个哈希，打 v2-preregistered 标签，接着跑 GLiNER 基准复现检查和 pilot。" The last fixes (e26a9a2) were frozen without a further Codex inspection, by user choice.
+- P3.0 anchor: the pilot-v1 manifest was regenerated and written in v1 seven-field format; sha256 equals the upstream ec064c52…. GLiNER needed an offline refs/main → 235cf92 (gliner2 fetches encoder_config at main). Comparison PASS; exact accuracy, Brier/F1 within 1e-6.
+- prepare: 5,570 rows (test 2,100 / calibration 1,800 / permutation 1,400 / pilot 270). Length exclusions: Civil 233, UltraFeedback 201. Emotion surprise test = 28 (availability-limited).
