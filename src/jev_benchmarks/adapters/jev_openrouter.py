@@ -75,6 +75,17 @@ def valid_cost(response: object) -> float | None:
     return _money(usage.get("cost") if isinstance(usage, dict) else None)
 
 
+def ledger_paused(path: Path) -> bool:
+    """A pausing retention stays in force until an operator appends ``pause_cleared``."""
+    state = False
+    for row in read_jsonl(path):
+        if row["event"] == "retained" and row.get("pause"):
+            state = True
+        elif row["event"] == "pause_cleared":
+            state = False
+    return state
+
+
 class BudgetLedger:
     """Durable, single-dispatcher record of every Jev reservation and its closure.
 
@@ -125,14 +136,7 @@ class BudgetLedger:
         )
 
     def paused(self) -> bool:
-        """A pausing retention stays in force until an operator appends ``pause_cleared``."""
-        state = False
-        for row in read_jsonl(self.path):
-            if row["event"] == "retained" and row.get("pause"):
-                state = True
-            elif row["event"] == "pause_cleared":
-                state = False
-        return state
+        return ledger_paused(self.path)
 
     def append(self, row: dict[str, Any]) -> None:
         append_jsonl(self.path, row, secret=self.secret)

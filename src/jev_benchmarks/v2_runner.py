@@ -219,20 +219,27 @@ class LocalProcessBackend:
 
 
 def _attempt_dir(root: Path) -> Path:
+    from .adapters.jev_openrouter import ledger_paused
+
     existing = sorted((int(path.name.split("-")[-1]), path) for path in root.glob("attempt-*"))
+    ledger = root / "budget-ledger.jsonl"
     for _, path in existing:
         status = path / "status.json"
         if status.exists():
             state = json.loads(status.read_text(encoding="utf-8"))["state"]
-            if state in {"cost_paused", "cost_exhausted"}:
+            # A cost pause blocks until an operator appends pause_cleared to the ledger; the
+            # paused attempt itself stays ineligible for reports. Exhaustion always blocks.
+            if state == "cost_exhausted" or (
+                state == "cost_paused" and (not ledger.exists() or ledger_paused(ledger))
+            ):
                 raise RuntimeError("cost dispatch stopped pending operator review")
     if existing:
         latest = existing[-1][1]
         status = latest / "status.json"
-        if (
-            not status.exists()
-            or json.loads(status.read_text(encoding="utf-8"))["state"] == "active"
-        ):
+        if not status.exists() or json.loads(status.read_text(encoding="utf-8"))["state"] in {
+            "active",
+            "running",
+        }:
             return latest
     return root / f"attempt-{existing[-1][0] + 1 if existing else 1}"
 
@@ -306,6 +313,7 @@ def _dispatch(
     attempt = _attempt_dir(root)
     attempt.mkdir(parents=True, exist_ok=True)
     output = attempt / "predictions.jsonl"
+    status_path = attempt / "status.json"
     done = {prediction_key(row) for row in read_jsonl(output) if row.get("error") is None}
     repeats = int(config.raw["models"][backend_name]["repeats"])
     pending = [
@@ -316,6 +324,9 @@ def _dispatch(
     ]
     if not pending:
         return output
+    # Mark the attempt as running before any dispatch: a crash leaves it ineligible for reports
+    # (only "active" is), so a stale "active" from an earlier split can never hide a pause.
+    write_json(status_path, {"state": "running"}, secret=os.environ.get("OPENROUTER_API_KEY"))
     backend = (
         backend_factory(config, backend_name, attempt)
         if backend_factory

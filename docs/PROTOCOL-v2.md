@@ -237,8 +237,10 @@ Bootstrap failure rules (build inspection):
   pinned checkpoint as provenance; Jev still needs one known snapshot.
 - A Jev cost pause (a 2xx without a valid cost) is written to the attempt status before the
   prediction row and rebuilt from the budget ledger on restart. It stays in force until an
-  operator reviews it and appends `{"event": "pause_cleared"}` to the ledger. Only attempts whose
-  last run finished cleanly (status `active`) are eligible for the report.
+  operator reviews it and appends `{"event": "pause_cleared"}` to the ledger; the next run then
+  starts a new attempt, and the paused attempt stays ineligible. A run marks its attempt `running`
+  before dispatch and `active` only after it finishes cleanly. Only `active` attempts are
+  eligible for the report, and no Jev attempt is reportable while the ledger holds a pause.
 - Wall latency is measured by the runner around each call for every backend (including prompt
   preparation and local worker IPC); adapters keep model-only time separately. The latency
   reference row is published even when no call succeeded on its first attempt (n = 0, null

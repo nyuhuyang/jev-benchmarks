@@ -900,3 +900,92 @@ def test_all_failed_order_calls_do_not_count_as_stable(
     with (json_path.parent / "flip.csv").open() as handle:
         flips = list(csv.DictReader(handle))
     assert {row["unavailable"] for row in flips} == {"permutation run incomplete: 0/8"}
+
+
+def test_new_split_marks_attempt_running_and_report_honours_ledger_pause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+    attempt = cfg.output_dir / "jev_openrouter" / "attempt-1"
+    attempt.mkdir(parents=True)
+    (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
+
+    class Crash:
+        def predict(self, experiment_id, row):
+            raise KeyboardInterrupt
+
+        def close(self):
+            return None
+
+    with pytest.raises(KeyboardInterrupt):
+        run_v2_backend(cfg, "jev_openrouter", split="test", backend_factory=lambda *_: Crash())
+    assert json.loads((attempt / "status.json").read_text())["state"] == "running"
+    # Even a clean-looking attempt is not reportable while the ledger holds a pause.
+    (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
+    (attempt.parent / "budget-ledger.jsonl").write_text(
+        '{"event":"reserved","txn":"a","amount":0.1}\n{"event":"retained","txn":"a","pause":true}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeError, match="cost pause pending"):
+        _select_attempt(cfg, "jev_openrouter", manifest)
+
+
+def test_pause_cleared_unblocks_a_new_attempt(tmp_path: Path) -> None:
+    from jev_benchmarks.v2_runner import _attempt_dir
+
+    root = tmp_path / "jev_openrouter"
+    (root / "attempt-1").mkdir(parents=True)
+    (root / "attempt-1" / "status.json").write_text('{"state":"cost_paused"}', encoding="utf-8")
+    ledger = root / "budget-ledger.jsonl"
+    ledger.write_text(
+        '{"event":"reserved","txn":"a","amount":0.1}\n{"event":"retained","txn":"a","pause":true}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeError, match="operator review"):
+        _attempt_dir(root)
+    with ledger.open("a") as handle:
+        handle.write('{"event":"pause_cleared"}\n')
+    assert _attempt_dir(root).name == "attempt-2"
+
+
+def test_order_completeness_uses_repeat_zero_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = report_config(tmp_path)
+    protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
+    protocol.parent.mkdir()
+    protocol.write_text("frozen protocol", encoding="utf-8")
+    base = report_examples()
+    orders = [
+        replace(row, split="permutation", permutation_id=f"order-{i}")
+        for row in base[4:6]
+        for i in range(4)
+    ]
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in base + orders])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    for backend, model in cfg.raw["models"].items():
+        rows = [
+            report_prediction(backend, row, repeat)
+            for row in base + orders
+            for repeat in range(model["repeats"])
+        ]
+        # Jev repeat 0 fails on every order call while repeats 1-2 succeed.
+        rows = [
+            replace(row, error="x", probabilities=(), predicted_index=-1)
+            if backend == "jev_openrouter" and row.split == "permutation" and row.repeat_index == 0
+            else row
+            for row in rows
+        ]
+        write_attempt(
+            cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
+            [row.to_dict() for row in rows],
+        )
+    json_path, _ = build_v2_report(cfg)
+    with (json_path.parent / "flip.csv").open() as handle:
+        jev = [row for row in csv.DictReader(handle) if row["backend"] == "jev_openrouter"]
+    assert [row["unavailable"] for row in jev] == ["permutation run incomplete: 0/8"]

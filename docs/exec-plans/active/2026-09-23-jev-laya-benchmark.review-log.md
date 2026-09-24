@@ -446,3 +446,10 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R2 medium: all-failed order calls reported as stable → FIXED: only successful order calls count toward completeness.
 - R3 medium: MASSIVE prevalence mis-described → FIXED (documentation): stated as pre-assignment prevalence for later locales.
 - Regression tests added. **These fixes are not covered by a Codex inspection** (budget exhausted).
+
+### A7 build inspection 3 — user-approved extra round, focused on 8369186 (base 67be976)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-inspect3/claudex-4laqkgwy/result.json (cross_provider; base 67be976; head 8369186) — REVISE
+- A7I3-F1 high: a stale "active" status could hide a pause after a crash in a later split → FIXED: the runner marks the attempt "running" before dispatch; the report refuses every Jev attempt while ledger_paused(); only "active" attempts are selectable.
+- A7I3-F2 medium: pause_cleared never unblocked new runs → FIXED: _attempt_dir blocks cost_paused only while the ledger is still paused; after pause_cleared it starts a new attempt and the paused attempt stays ineligible. cost_exhausted still blocks.
+- A7I3-F3 medium: REJECTED with evidence. v2_report.py:204 groups only repeat_index == 0 rows, so order_rows never includes repeat 1 and a successful repeat 1 cannot complete an order. A regression test (repeat 0 fails on every order call, repeats 1–2 succeed → "permutation run incomplete: 0/8") confirms the behaviour.
+- Tests added; suite passes (coverage 91.49%). Not yet re-inspected.

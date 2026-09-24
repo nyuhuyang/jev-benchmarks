@@ -107,6 +107,12 @@ def _select_attempt(
     contract = {
         (row.split, row.example_id, row.permutation_id, row.letter_mode): row for row in manifest
     }
+    if backend == "jev_openrouter":
+        from .adapters.jev_openrouter import ledger_paused
+
+        ledger = config.output_dir / backend / "budget-ledger.jsonl"
+        if ledger.exists() and ledger_paused(ledger):
+            raise RuntimeError("Jev cost pause pending operator review; no attempt is reportable")
     attempts = sorted(
         (config.output_dir / backend).glob("attempt-*"),
         key=lambda path: int(path.name.split("-")[-1]),
