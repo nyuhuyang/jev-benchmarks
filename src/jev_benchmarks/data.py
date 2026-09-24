@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import random
 import re
 import unicodedata
@@ -504,6 +505,26 @@ def load_v2_examples(
     return output, summaries
 
 
+def load_local_tokenizer(path: str) -> Any:
+    """Load a pinned local tokenizer without network access or remote code.
+
+    Some checkpoints (GLiNER2.5's mDeBERTa) store ``extra_special_tokens`` as a list, which
+    current Transformers rejects. The list is passed as ``additional_special_tokens`` instead,
+    so those markers still tokenize as single tokens and length counts stay faithful. The
+    pinned files on disk are never rewritten.
+    """
+    from transformers import AutoTokenizer
+
+    kwargs: dict[str, Any] = {"local_files_only": True, "trust_remote_code": False}
+    config_path = Path(path) / "tokenizer_config.json"
+    if config_path.exists():
+        extra = json.loads(config_path.read_text(encoding="utf-8")).get("extra_special_tokens")
+        if isinstance(extra, list):
+            kwargs["extra_special_tokens"] = {}
+            kwargs["additional_special_tokens"] = [str(token) for token in extra]
+    return AutoTokenizer.from_pretrained(path, **kwargs)
+
+
 def make_length_counters(
     config: BenchmarkConfig,
     *,
@@ -512,14 +533,7 @@ def make_length_counters(
 ) -> dict[str, dict[str, Callable[[Example], int]]]:
     """Load pinned local tokenizers only; model weights are never touched by prepare."""
     if tokenizer_loader is None:
-        from transformers import AutoTokenizer
-
-        def load_tokenizer(path: str) -> Any:
-            return AutoTokenizer.from_pretrained(
-                path, local_files_only=True, trust_remote_code=False
-            )
-
-        tokenizer_loader = load_tokenizer
+        tokenizer_loader = load_local_tokenizer
 
     rule = config.raw["length_rule"]
     tokenizer_paths = {

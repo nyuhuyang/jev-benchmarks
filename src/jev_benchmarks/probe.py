@@ -140,20 +140,15 @@ def run_probe(path: Path, *, static_only: bool = False) -> Path:
     ):
         raise ValueError("probe model revisions differ from frozen v2 config")
     from datasets import load_dataset
-    from transformers import AutoTokenizer
+
+    from .data import load_local_tokenizer
 
     tokenizer_paths = config.raw["length_rule"]
     if str(tokenizer_paths["qwen_tokenizer_path"]).startswith("TODO-PIN"):
         raise ValueError("tokenizer paths need TODO-PIN resolution")
-    qwen_tok = AutoTokenizer.from_pretrained(
-        tokenizer_paths["qwen_tokenizer_path"], local_files_only=True, trust_remote_code=False
-    )
+    qwen_tok = load_local_tokenizer(tokenizer_paths["qwen_tokenizer_path"])
     laya_toks = {
-        backend: AutoTokenizer.from_pretrained(
-            tokenizer_paths["laya_tokenizer_paths"][key],
-            local_files_only=True,
-            trust_remote_code=False,
-        )
+        backend: load_local_tokenizer(tokenizer_paths["laya_tokenizer_paths"][key])
         for backend, key in (
             ("laya_base", "base"),
             ("laya_multilingual", "multilingual"),

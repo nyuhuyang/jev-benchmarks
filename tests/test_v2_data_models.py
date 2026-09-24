@@ -446,3 +446,26 @@ def test_ultrafeedback_candidates_group_completions_and_skip_non_numeric() -> No
     assert not by_split["pilot"] & by_split["test"]
     assert not by_split["calibration"] & by_split["test"]
     assert len({groups[row.example_id] for row in selected}) == len(selected)
+
+
+def test_load_local_tokenizer_maps_list_extra_special_tokens(tmp_path, monkeypatch) -> None:
+    import json as _json
+
+    import transformers
+
+    from jev_benchmarks.data import load_local_tokenizer
+
+    (tmp_path / "tokenizer_config.json").write_text(
+        _json.dumps({"extra_special_tokens": ["[P]", "[C]"]}), encoding="utf-8"
+    )
+    seen: dict[str, object] = {}
+
+    def fake(path: str, **kwargs: object) -> str:
+        seen.update(kwargs)
+        return "tok"
+
+    monkeypatch.setattr(transformers.AutoTokenizer, "from_pretrained", fake)
+    assert load_local_tokenizer(str(tmp_path)) == "tok"
+    assert seen["extra_special_tokens"] == {}
+    assert seen["additional_special_tokens"] == ["[P]", "[C]"]
+    assert seen["local_files_only"] is True and seen["trust_remote_code"] is False
