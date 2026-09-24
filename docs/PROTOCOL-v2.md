@@ -69,8 +69,10 @@ slots go to other classes; the per-split class counts are recorded in `manifest-
 natural base rate. Brier, ECE, temperature fitting and coverage at the 5% error budget all depend
 on class prevalence, and the natural rates differ sharply (for example 13.4% spam in SMS Spam and
 8.0% toxic in Civil Comments). Coverage therefore means "share of balanced test items automated",
-not deployment traffic. The candidate-pool prevalence of each dataset is recorded in
-`manifest-summary.json`, and comparisons with public results note their sampling distribution. The three sets are disjoint. Single-source
+not deployment traffic. The class prevalence of each dataset's sampled population (one representative per content group)
+is recorded in `manifest-summary.json` as `pool_class_prevalence`, with raw-candidate prevalence
+kept separately. The summary is part of the freeze record (`manifest_summary_sha256`).
+Comparisons with public results list each source's sampling distribution. The three sets are disjoint. Single-source
 BTZSC and SMS Spam splits are carved into those sets. NFKC/lowercase/whitespace-collapsed/
 punctuation-stripped text hashes group duplicates before selection; MASSIVE parallel utterances
 share a group by cross-locale ID. Merged-group and length-exclusion counts are reported. Any item

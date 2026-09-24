@@ -33,12 +33,13 @@ from .v2_metrics import (
 )
 from .v2_runner import _dispatch_lock, prediction_key, verify_frozen
 
+# Like-for-like reading first (Amendment 7 C002): accuracy and B-vs-B, then A-vs-A supplements.
 HEADLINE_METRICS = (
     ("accuracy", "A_raw"),
-    ("brier", "A_raw"),
     ("brier", "B_scaled"),
-    ("test_coverage", "A_raw"),
     ("test_coverage", "B_scaled"),
+    ("brier", "A_raw"),
+    ("test_coverage", "A_raw"),
 )
 
 
@@ -592,6 +593,38 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             row[f"{prefix}_coverage"] = float(np.mean(coverage)) if coverage else None
             row[f"{prefix}_selective_error"] = float(np.mean(errors)) if errors else None
             row[f"{prefix}_no_feasible"] = sum(bool(c.get("no_feasible_threshold")) for c in cells)
+    # Per-dataset paired differences beside every pooled confirmatory and headline effect.
+    per_dataset: list[dict[str, Any]] = []
+    memo: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for parent in [*confirmatory_rows, *headline]:
+        left, right = parent["left"], parent["right"]
+        for name in parent["datasets"]:
+            key = (left, right, name, parent["metric"], parent["condition"])
+            if key not in memo:
+                memo[key] = joint_paired_bootstrap(
+                    {name: by_backend[left][name]["test"]},
+                    {name: by_backend[right][name]["test"]},
+                    {name: by_backend[left][name]["calibration"]},
+                    {name: by_backend[right][name]["calibration"]},
+                    metric=parent["metric"],
+                    condition=parent["condition"],
+                    resamples=resamples,
+                    seed=config.seed,
+                    error_budget=budget,
+                )
+            per_dataset.append(
+                {
+                    "id": f"{parent['id']}:{name}",
+                    "parent": parent["id"],
+                    "left": left,
+                    "right": right,
+                    "dataset": name,
+                    "metric": parent["metric"],
+                    "condition": parent["condition"],
+                    "family": "per_dataset",
+                    **memo[key],
+                }
+            )
     if k == 9:
         shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend["qwen_logit"]))
         frozen = set(family["tests"][0]["datasets"])
@@ -636,7 +669,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             del row[key]
     outputs = {
         "metrics.csv": metric_rows,
-        "pairwise_ci.csv": [*headline, *pairwise],
+        "pairwise_ci.csv": [*headline, *pairwise, *per_dataset],
         "reliability_bins.csv": reliability_rows,
         "latency.csv": latency_rows,
         "flip.csv": flip_rows,
@@ -667,6 +700,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             },
         },
         "headline": headline,
+        "per_dataset": per_dataset,
         "confirmatory": confirmatory_rows,
         "descriptive_intervals": pairwise[len(confirmatory_rows) :],
         "metrics": metric_rows,
@@ -708,7 +742,11 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         "",
         "Differences are contender minus Jev on identical items: a negative accuracy or coverage "
         "difference, or a positive Brier difference, means Jev leads. Estimation only, unadjusted; "
-        "primary-set zero-shot accuracy/Brier rows are the C1 confirmatory estimates.",
+        "primary-set zero-shot accuracy/Brier rows are the C1 confirmatory estimates. "
+        "The like-for-like reading is accuracy plus B-vs-B; A-vs-A rows are supplements.",
+        "",
+        "**Estimand:** every value describes class-balanced test items (candidate-pool "
+        "prevalence is in manifest-summary.json), not deployment traffic.",
         "",
         "| set | contender | gap | metric | condition | difference | 95% CI | Holm (C1) |",
         "| --- | --- | --- | --- | --- | ---: | --- | --- |",
@@ -754,6 +792,21 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             f"[{_num(row['ci95_low'])}, {_num(row['ci95_high'])}] | "
             f"{_num(row['p_two_sided'])} | {row['holm_reject_005']} |"
         )
+    lines += [
+        "",
+        "## Per-dataset paired differences",
+        "",
+        "Each pooled effect above is an equal-weight average over its datasets; multiclass Brier "
+        "ranges with K, so read pooled Brier with these rows.",
+        "",
+        "| parent | dataset | difference | 95% CI |",
+        "| --- | --- | ---: | --- |",
+    ]
+    lines.extend(
+        f"| {row['parent']} | {row['dataset']} | {_num(row['difference'])} | "
+        f"[{_num(row['ci95_low'])}, {_num(row['ci95_high'])}] |"
+        for row in per_dataset
+    )
     lines.extend(
         [
             "",
@@ -785,15 +838,17 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                 "",
                 "## Relation to public results",
                 "",
-                "Same-run controlled re-check; public values use other protocols and samples.",
+                "Same-run controlled re-check on class-balanced test items; public values use "
+                "other protocols and the sampling distributions listed here.",
                 "",
-                "| source | contenders | task | metric | values | protocol |",
-                "| --- | --- | --- | --- | --- | --- |",
+                "| source | contenders | task | sampling | metric | values | protocol |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         lines.extend(
             f"| [{row['source']}]({row['url']}) | {row['contenders']} | {row['task']} | "
-            f"{row['metric']} | {row['values']} | {row['protocol_note']} |"
+            f"{row.get('sampling', 'not stated')} | {row['metric']} | {row['values']} | "
+            f"{row['protocol_note']} |"
             for row in public_rows
         )
     lines.extend(

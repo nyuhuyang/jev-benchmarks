@@ -113,7 +113,15 @@ def prepare_manifest(config: BenchmarkConfig) -> Path:
             write_jsonl(path, rows)
         from .io import write_json
 
-        write_json(config.output_dir / "manifest-summary.json", summary)
+        # The summary is frozen evidence (prevalence, class counts): never silently rewritten.
+        summary_path = config.output_dir / "manifest-summary.json"
+        if summary_path.exists():
+            if json.loads(summary_path.read_text(encoding="utf-8")) != json.loads(
+                json.dumps(summary)
+            ):
+                raise RuntimeError(f"refusing to overwrite a different summary at {summary_path}")
+        else:
+            write_json(summary_path, summary)
         return path
     examples = load_examples(config)
     path = config.output_dir / "manifest.jsonl"
@@ -289,14 +297,10 @@ def _v2_candidates(rows: Any, spec: dict[str, object]) -> list[Example]:
     return output
 
 
-def _split_candidates(
-    candidates: Sequence[Example],
-    counts: Mapping[str, int],
-    seed: int,
-    *,
-    mass_groups: Mapping[str, str] | None = None,
-    assignments: dict[str, str] | None = None,
-) -> tuple[list[Example], int]:
+def representative_pool(
+    candidates: Sequence[Example], seed: int, mass_groups: Mapping[str, str] | None = None
+) -> tuple[list[tuple[str, Example]], int]:
+    """One seeded-hash representative per content group: the population that is sampled."""
     by_group: dict[str, list[Example]] = defaultdict(list)
     for row in candidates:
         group = mass_groups[row.example_id] if mass_groups else normalized_text_hash(row.text)
@@ -311,7 +315,18 @@ def _split_candidates(
             rows, key=lambda row: hashlib.sha256(f"{seed}:{row.example_id}".encode()).hexdigest()
         )
 
-    pool = [(group, representative(rows)) for group, rows in sorted(by_group.items())]
+    return [(group, representative(rows)) for group, rows in sorted(by_group.items())], merged
+
+
+def _split_candidates(
+    candidates: Sequence[Example],
+    counts: Mapping[str, int],
+    seed: int,
+    *,
+    mass_groups: Mapping[str, str] | None = None,
+    assignments: dict[str, str] | None = None,
+) -> tuple[list[Example], int]:
+    pool, merged = representative_pool(candidates, seed, mass_groups)
     output: list[Example] = []
     for offset, (split, count) in enumerate(counts.items()):
         eligible = [
@@ -478,10 +493,19 @@ def load_v2_examples(
             },
             # Samples are class-balanced within availability; the pool prevalence is the
             # natural base rate that balanced estimates do not represent (protocol C001/C006).
-            "pool_class_prevalence": {
-                str(label): count / len(candidates)
-                for label, count in sorted(Counter(row.target_index for row in candidates).items())
-            },
+            # Prevalence of the sampled population (one representative per content group);
+            # raw candidates (e.g. every UltraFeedback completion) are kept separately.
+            "pool_class_prevalence": _prevalence(
+                [
+                    row
+                    for _, row in representative_pool(
+                        candidates,
+                        config.seed,
+                        massive_groups if spec["kind"] == "massive" else content_groups,
+                    )[0]
+                ]
+            ),
+            "raw_candidate_class_prevalence": _prevalence(candidates),
             "class_counts": {
                 split: {
                     str(label): count
@@ -523,6 +547,11 @@ def load_v2_examples(
         )
     )
     return output, summaries
+
+
+def _prevalence(rows: Sequence[Example]) -> dict[str, float]:
+    counts = Counter(row.target_index for row in rows)
+    return {str(label): count / len(rows) for label, count in sorted(counts.items())}
 
 
 def load_local_tokenizer(path: str) -> Any:

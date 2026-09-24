@@ -35,6 +35,9 @@ def verify_frozen(config: BenchmarkConfig, manifest: Path) -> None:
     protocol_path = config.path.parent.parent / frozen["protocol_file"]
     if record["protocol_sha256"] != sha256_file(protocol_path):
         raise RuntimeError("protocol hash mismatch with preregistered record")
+    summary = record.get("manifest_summary_sha256")
+    if summary is not None and summary != sha256_file(manifest.parent / "manifest-summary.json"):
+        raise RuntimeError("manifest summary hash mismatch with preregistered record")
     probe = record.get("probe_results_sha256")
     probe_path = config.path.parent.parent / "results" / "reports" / "probe-v2.json"
     if probe is not None and probe != sha256_file(probe_path):
@@ -364,9 +367,16 @@ def _dispatch(
                     raise
                 served = getattr(exc, "model_resolved", None) or served_hint
                 if backend_name == "jev_openrouter" and served and snapshot and served != snapshot:
+                    # A cost pause outranks the snapshot change: both need operator review,
+                    # and only cost_paused blocks new attempts.
+                    paused = getattr(getattr(backend, "budget", None), "paused", False)
                     write_json(
                         attempt / "status.json",
-                        {"state": "snapshot_changed", "old": snapshot, "new": served},
+                        {
+                            "state": "cost_paused" if paused else "snapshot_changed",
+                            "old": snapshot,
+                            "new": served,
+                        },
                         secret=secret,
                     )
                     raise RuntimeError(

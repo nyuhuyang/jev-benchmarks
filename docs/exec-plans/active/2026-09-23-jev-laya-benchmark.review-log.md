@@ -411,3 +411,15 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - User enabled the CCFA research workflow ("继续Codex审阅，启用ccfa 论文审阅"). The host ran ccf-humanization → ccf-common → ccf-paper-reviewer (scientific, generic-7) on PROTOCOL-v2 @35568e0: ccfa-review-reports/protocol-v2-scientific-review.md (validator PASS; 7 findings; borderline 6/10; confidence 4).
 - Per claudex-loop research-skills: the Codex review is not a substitute for the CCFA specialist; CCFA criteria are copied into the plan's Amendment 7 acceptance criteria.
 - Reviewer: fresh Codex plan review (runner 2.2.1), CLI default model; fallback same-provider-on-unavailable.
+
+### A7 round 1 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-r1/claudex-lh6rgnes/result.json (cross_provider; plan sha 47bdcf1f…)
+- Findings: F1 high (cost pause lost on snapshot change), F2–F6 medium (summary not frozen; prevalence population; per-dataset rows missing; headline order; sampling notes).
+  Amendment 7 round 1 dispositions (host = Claude). All accepted and implemented, with regression tests (suite passes, coverage 91.30%):
+  - F1: in the runner's error path, a snapshot change during a cost pause writes state `cost_paused` (with old/new snapshot), so `_attempt_dir` blocks new attempts until an operator resolves it. Test: missing-cost JevResponseError from a new snapshot → cost_paused and _attempt_dir refuses.
+  - F2: prepare_manifest refuses to overwrite a differing manifest-summary.json. The freeze record gains manifest_summary_sha256, and verify_frozen checks it when present. Test: identical summary accepted, differing summary refused.
+  - F3: a new representative_pool helper is shared by the splitter and the prevalence computation. pool_class_prevalence covers the grouped representative pool; raw_candidate_class_prevalence is kept separately. Test: 3 completions of one prompt vs 1 of another give pool {0.5, 0.5} and raw {0.75, 0.25}.
+  - F4: per-dataset paired-difference rows (family per_dataset, memoized) for every pooled confirmatory and headline effect, in pairwise_ci.csv, v2.json and a v2.md table. Test asserts C1 parents are present.
+  - F5: HEADLINE_METRICS order is accuracy, B Brier, B coverage, A Brier, A coverage. Test asserts the order.
+  - F6: a balanced-estimand note beside the headline; a `sampling` column in docs/public-results.csv, shown in the v2.md public table (unknown sources marked "not stated"). Test asserts the note.
+  Plan and PROTOCOL text updated accordingly; freeze template updated.

@@ -249,7 +249,14 @@ The user enabled the CCFA research workflow. `ccf-paper-reviewer` (scientific mo
 - [x] Host CCFA scientific review of PROTOCOL-v2 (`ccfa-review-reports/protocol-v2-scientific-review.md`, validator PASS).
 - [x] Protocol edits C001–C007; `manifest-summary.json` pool prevalence and class counts; probe record committed and hash-checked by `verify_frozen`; tests.
 - [x] Inspection A6-4 fixes R1–R3 with regression tests.
-- [ ] Fresh Codex plan review of Amendment 7 and the revised protocol.
+- [x] Codex plan review A7 round 1 (REVISE, F1–F6), all addressed:
+  - **F1:** a cost pause outranks a snapshot change, so the attempt is marked `cost_paused` and new attempts are blocked.
+  - **F2:** `manifest-summary.json` is refused if it differs, and hashed as `manifest_summary_sha256` in the freeze record; `verify_frozen` checks it.
+  - **F3:** `pool_class_prevalence` is computed over the grouped representative pool that is sampled (one per content group); `raw_candidate_class_prevalence` is kept separately.
+  - **F4:** per-dataset paired differences appear beside every pooled confirmatory and headline effect (`per_dataset` rows and a v2.md table).
+  - **F5:** headline order is accuracy, B-vs-B Brier, B-vs-B coverage, then the A-vs-A supplements.
+  - **F6:** a balanced-estimand note sits beside the headline, and a `sampling` column is added to `public-results.csv` and the public table.
+- [ ] Codex plan review A7 to APPROVED.
 - [ ] Fresh Codex code inspection of the Amendment 7 changes.
 - [ ] Freeze: `prepare`, fill `v2-freeze.json` (including `probe_results_sha256`), tag `v2-preregistered`.
 - [ ] P5 `ccf-integrity-auditor` pass on the report, and P6 `ccf-paper-reviewer` pass on the Rmd.

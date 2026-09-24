@@ -4,6 +4,7 @@ import csv
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import ClassVar
 
 import numpy as np
@@ -721,3 +722,93 @@ def test_incomplete_permutations_and_all_failure_latency_are_reported(
     with (json_path.parent / "latency.csv").open() as handle:
         qwen = next(row for row in csv.DictReader(handle) if row["backend"] == "qwen_logit")
     assert qwen["n"] == "0" and qwen["dispatched"] == "4"
+
+
+def test_cost_pause_outranks_snapshot_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import JevResponseError
+    from jev_benchmarks.v2_runner import _attempt_dir, run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Jev:
+        budget = SimpleNamespace(paused=False)
+        calls = 0
+
+        def predict(self, experiment_id, row):
+            Jev.calls += 1
+            if Jev.calls == 1:
+                return report_prediction("jev_openrouter", row)
+            Jev.budget.paused = True
+            raise JevResponseError("response missing a valid usage.cost", "snapshot-2")
+
+        def close(self):
+            return None
+
+    with pytest.raises(RuntimeError, match="snapshot changed"):
+        run_v2_backend(cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev())
+    with pytest.raises(RuntimeError, match="operator review"):
+        _attempt_dir(cfg.output_dir / "jev_openrouter")
+
+
+def test_prevalence_uses_the_grouped_representative_pool() -> None:
+    from jev_benchmarks.data import _prevalence, representative_pool
+
+    base = report_examples()[0]
+    rows = [replace(base, example_id=f"a{i}", target_index=0) for i in range(3)] + [
+        replace(base, example_id="b0", target_index=1)
+    ]
+    groups = {"a0": "prompt-a", "a1": "prompt-a", "a2": "prompt-a", "b0": "prompt-b"}
+    pool, merged = representative_pool(rows, 1, groups)
+    assert merged == 2
+    assert _prevalence([row for _, row in pool]) == {"0": 0.5, "1": 0.5}
+    assert _prevalence(rows) == {"0": 0.75, "1": 0.25}
+
+
+def test_manifest_summary_is_frozen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from jev_benchmarks import data
+
+    cfg = report_config(tmp_path)
+    cfg.raw["schema_version"] = 2
+    summaries = iter(
+        [{"agnews": {"counts": 1}}, {"agnews": {"counts": 1}}, {"agnews": {"counts": 2}}]
+    )
+    monkeypatch.setattr(
+        data, "load_v2_examples", lambda config: (report_examples(), next(summaries))
+    )
+    data.prepare_manifest(cfg)
+    data.prepare_manifest(cfg)  # identical summary: accepted
+    with pytest.raises(RuntimeError, match="different summary"):
+        data.prepare_manifest(cfg)
+
+
+def test_report_orders_like_for_like_first_with_per_dataset_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = report_config(tmp_path)
+    protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
+    protocol.parent.mkdir()
+    protocol.write_text("frozen protocol", encoding="utf-8")
+    manifest = report_examples()
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
+    monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
+    for backend, model in cfg.raw["models"].items():
+        write_jsonl(
+            cfg.output_dir / backend / "attempt-1" / "predictions.jsonl",
+            [
+                report_prediction(backend, row, repeat).to_dict()
+                for row in manifest
+                for repeat in range(model["repeats"])
+            ],
+        )
+    json_path, md_path = build_v2_report(cfg)
+    payload = json.loads(json_path.read_text())
+    order = [(row["metric"], row["condition"]) for row in payload["headline"][:3]]
+    assert order == [("accuracy", "A_raw"), ("brier", "B_scaled"), ("test_coverage", "B_scaled")]
+    parents = {row["parent"] for row in payload["per_dataset"]}
+    assert {"C1-accuracy", "C1-brier-A", "C1-brier-B"} <= parents
+    text = md_path.read_text()
+    assert "class-balanced test items" in text and "Per-dataset paired differences" in text
