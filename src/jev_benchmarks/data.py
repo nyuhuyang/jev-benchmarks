@@ -159,13 +159,55 @@ def _v2_rows(load_dataset: Callable[..., object], spec: dict[str, object], cache
     revision = str(spec["revision"])
     if revision.startswith("TODO-PIN"):
         raise ValueError(f"dataset {spec['name']} revision needs TODO-PIN resolution")
+    extra: dict[str, object] = {}
+    if spec.get("data_files"):
+        extra["data_files"] = [str(value) for value in spec["data_files"]]  # type: ignore[union-attr]
     return load_dataset(
         str(spec["repository"]),
         name=spec.get("configuration"),
         split=str(spec.get("source_split", "train")),
         revision=revision,
         cache_dir=cache,
+        **extra,
     )
+
+
+def ultrafeedback_candidates(
+    rows: Any, spec: dict[str, object]
+) -> tuple[list[Example], dict[str, str]]:
+    """One score item per (prompt, completion) with a numeric helpfulness rating.
+
+    Completions of one prompt share a group so they can never straddle splits.
+    """
+    name = str(spec["name"])
+    labels = tuple(str(label) for label in spec["labels"])  # type: ignore[union-attr]
+    aspect = str(spec.get("aspect", "helpfulness"))
+    output: list[Example] = []
+    groups: dict[str, str] = {}
+    for index, row in enumerate(rows):
+        question = str(row["instruction"])
+        group = normalized_text_hash(question)
+        for position, completion in enumerate(row["completions"]):
+            rating = str(completion["annotations"][aspect]["Rating"]).strip()
+            if not rating.isdigit() or not 1 <= int(rating) <= len(labels):
+                continue
+            text = f"Question: {question}\n\nResponse: {completion['response']}"
+            example_id = f"{name}:{index}:{position}"
+            output.append(
+                Example(
+                    name,
+                    str(spec["task"]),
+                    example_id,
+                    text,
+                    hashlib.sha256(text.encode()).hexdigest(),
+                    labels,
+                    int(rating) - 1,
+                    question_type="score",
+                    instructions=str(spec.get("instructions", "")),
+                )
+            )
+            groups[example_id] = group
+    return output, groups
 
 
 def _v2_candidates(rows: Any, spec: dict[str, object]) -> list[Example]:
@@ -202,6 +244,8 @@ def _v2_candidates(rows: Any, spec: dict[str, object]) -> list[Example]:
                 )
             )
         return output
+    if kind == "ultrafeedback":
+        return ultrafeedback_candidates(rows, spec)[0]
     if kind == "massive" and not labels:
         labels = tuple(str(value).replace("_", " ") for value in rows.features["intent"].names)  # type: ignore[union-attr]
     for index, row in enumerate(rows):  # type: ignore[union-attr]
@@ -256,8 +300,16 @@ def _split_candidates(
         group = mass_groups[row.example_id] if mass_groups else normalized_text_hash(row.text)
         by_group[group].append(row)
     merged = sum(len(group) - 1 for group in by_group.values())
+
     # One representative per content group keeps requested counts exact and prevents leakage.
-    pool = [(group, rows[0]) for group, rows in sorted(by_group.items())]
+    # The representative is chosen by a seeded hash rather than list position, so a group's
+    # first member (e.g. the first completion of a prompt) is not systematically favoured.
+    def representative(rows: list[Example]) -> Example:
+        return min(
+            rows, key=lambda row: hashlib.sha256(f"{seed}:{row.example_id}".encode()).hexdigest()
+        )
+
+    pool = [(group, representative(rows)) for group, rows in sorted(by_group.items())]
     output: list[Example] = []
     for offset, (split, count) in enumerate(counts.items()):
         eligible = [
@@ -352,7 +404,11 @@ def load_v2_examples(
     for spec in config.raw["dataset"]["datasets"]:
         name = str(spec["name"])
         rows = _v2_rows(loader, spec, str(config.path.parent.parent / "results" / "cache"))
-        candidates = _v2_candidates(rows, spec)
+        content_groups: dict[str, str] | None = None
+        if spec["kind"] == "ultrafeedback":
+            candidates, content_groups = ultrafeedback_candidates(rows, spec)
+        else:
+            candidates = _v2_candidates(rows, spec)
         assigned: Mapping[str, Callable[[Example], int]] = {}
         budgets: dict[str, int] = {}
         if spec["kind"] == "massive":
@@ -376,7 +432,7 @@ def load_v2_examples(
             candidates,
             counts["massive"] if spec["kind"] == "massive" else counts["default"],
             config.seed,
-            mass_groups=massive_groups if spec["kind"] == "massive" else None,
+            mass_groups=massive_groups if spec["kind"] == "massive" else content_groups,
             assignments=massive_assignments if spec["kind"] == "massive" else None,
         )
         output.extend(selected)

@@ -4,13 +4,13 @@ base_config: configs/v2.yaml
 probe_only: true
 seed: 20260923
 model_revisions:
-  laya: TODO-PIN-LAYA-REVISION
-  qwen: TODO-PIN-QWEN-REVISION
+  laya: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
+  qwen: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
   btzsc: fef2a2ac62b69c58670047dddf045c53d7c3cb5e
 synthetic_items:
   choice: 'Synthetic routing text: send a parcel to a friend.'
   noul: 'Synthetic statement: this message contains a made-up offer.'
-  score: 'Synthetic review: the imaginary restaurant was satisfactory.'
+  score: 'Question: What colour is the imaginary sky of planet Zorb? Response: The imaginary sky of planet Zorb is described as teal.'
 static_checks:
   laya_output_shapes:
   - score
@@ -28,8 +28,8 @@ synthetic_calls:
   qwen_determinism_duplicate: true
   no_benchmark_items: true
 local_runtime:
-  scratch_home: TODO-PIN-ABSOLUTE-SCRATCH-HOME
-  hf_home: TODO-PIN-ABSOLUTE-HF-CACHE
+  scratch_home: ../models/sandbox-home
+  hf_home: ../models/hf-cache
 datasets:
 - name: agnews
   instructions: Which single label best describes the input text?
@@ -50,14 +50,14 @@ datasets:
   labels:
   - Not toxic.
   - 'Toxic: rude, disrespectful, insulting, obscene, threatening or hateful.'
-- name: yelp_review_full
-  instructions: How many stars does this Yelp review give?
+- name: ultrafeedback_helpfulness
+  instructions: How helpful is the response to the question?
   labels:
-  - 1 star
-  - 2 stars
-  - 3 stars
-  - 4 stars
-  - 5 stars
+  - '1: Severely incorrect or unhelpful'
+  - '2: Partially incorrect'
+  - '3: Correct'
+  - '4: Highly informative'
+  - '5: Outstandingly helpful'
 - name: massive_en
   instructions: Which single label best describes the input text?
   labels: FROM-PINNED-DATASET

@@ -9,8 +9,8 @@ frozen:
   hashes_file: configs/v2-freeze.json
   protocol_file: docs/PROTOCOL-v2.md
 local_runtime:
-  scratch_home: TODO-PIN-ABSOLUTE-SCRATCH-HOME
-  hf_home: TODO-PIN-ABSOLUTE-HF-CACHE
+  scratch_home: ../models/sandbox-home
+  hf_home: ../models/hf-cache
 latency_paraphrases:
 - Select the best category.
 - Which category fits best?
@@ -64,7 +64,7 @@ dataset:
     task: spam
     repository: ucirvine/sms_spam
     source_split: train
-    revision: TODO-PIN-SMS-SPAM
+    revision: cae486f927c250fe1d4a5b55f11357964ed1646c
     labels:
     - An ordinary personal or service message that is not spam.
     - 'Spam: unsolicited advertising, prize or lottery claims, scams or phishing.'
@@ -74,24 +74,28 @@ dataset:
     task: toxicity
     repository: google/civil_comments
     source_split: train
-    revision: TODO-PIN-CIVIL-COMMENTS
+    revision: f2970eb3a55777454c94069077cc8d9b5866312d
     labels:
     - Not toxic.
     - 'Toxic: rude, disrespectful, insulting, obscene, threatening or hateful.'
     instructions: Is this comment toxic?
-  - name: yelp_review_full
-    kind: yelp
-    task: sentiment_score
-    repository: Yelp/yelp_review_full
-    source_split: test
-    revision: TODO-PIN-YELP-REVIEW-FULL
+  - name: ultrafeedback_helpfulness
+    kind: ultrafeedback
+    task: helpfulness_score
+    repository: openbmb/UltraFeedback
+    source_split: train
+    revision: 40b436560ca83a8dba36114c22ab3c66e43f6d5e
+    data_files:
+    - truthful_qa.jsonl
+    - false_qa.jsonl
+    aspect: helpfulness
     labels:
-    - 1 star
-    - 2 stars
-    - 3 stars
-    - 4 stars
-    - 5 stars
-    instructions: How many stars does this Yelp review give?
+    - '1: Severely incorrect or unhelpful'
+    - '2: Partially incorrect'
+    - '3: Correct'
+    - '4: Highly informative'
+    - '5: Outstandingly helpful'
+    instructions: How helpful is the response to the question?
   - name: massive_en
     kind: massive
     task: intent
@@ -99,7 +103,7 @@ dataset:
     configuration: en-US
     source_split: test
     locale: en-US
-    revision: TODO-PIN-MASSIVE
+    revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
   - name: massive_zh
     kind: massive
@@ -108,7 +112,7 @@ dataset:
     configuration: zh-CN
     source_split: test
     locale: zh-CN
-    revision: TODO-PIN-MASSIVE
+    revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
   - name: massive_km
     kind: massive
@@ -117,15 +121,15 @@ dataset:
     configuration: km-KH
     source_split: test
     locale: km-KH
-    revision: TODO-PIN-MASSIVE
+    revision: ed58ac423a2f4121720918bf5301577edce4ffd3
     instructions: Which single label best describes the input text?
 length_rule:
   required: true
-  qwen_tokenizer_path: TODO-PIN-QWEN-TOKENIZER-PATH
+  qwen_tokenizer_path: ../models/hf-cache/hub/models--Qwen--Qwen3-1.7B/snapshots/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
   laya_tokenizer_paths:
-    base: TODO-PIN-LAYA-BASE-TOKENIZER-PATH
-    multilingual: TODO-PIN-LAYA-MULTILINGUAL-TOKENIZER-PATH
-    typed: TODO-PIN-LAYA-TYPED-TOKENIZER-PATH
+    base: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8/tokenizer
+    multilingual: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8/multilingual/tokenizer
+    typed: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8/typed-decisions/tokenizer
   context_budgets:
     jev_openrouter: 32000
     qwen_logit: 32768
@@ -133,7 +137,7 @@ length_rule:
     laya_multilingual: 1024
     laya_typed: 1024
     gliner: 512
-  gliner_tokenizer_path: TODO-PIN-GLINER-TOKENIZER-PATH
+  gliner_tokenizer_path: ../models/hf-cache/hub/models--fastino--gliner2.5-multi-v1/snapshots/235cf92d6d4318da9bfca0d08975c8fa7250d13b
 models:
   jev_openrouter:
     model_id: typesafe/jev-1.13
@@ -144,7 +148,7 @@ models:
     - banking77
     - sms_spam
     - civil_comments
-    - yelp_review_full
+    - ultrafeedback_helpfulness
     - massive_en
     - massive_zh
     - massive_km
@@ -154,8 +158,8 @@ models:
     minimum_reservation_usd: 1.0e-05
   laya_base:
     model_id: convaiinnovations/laya
-    revision: TODO-PIN-LAYA-REVISION
-    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
+    local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: english
     repeats: 1
     datasets:
@@ -164,18 +168,18 @@ models:
     - banking77
     - sms_spam
     - civil_comments
-    - yelp_review_full
+    - ultrafeedback_helpfulness
     head_max_len:
       agnews: TO-FILL-AFTER-PROBE
       emotiondair: TO-FILL-AFTER-PROBE
       banking77: TO-FILL-AFTER-PROBE
       sms_spam: TO-FILL-AFTER-PROBE
       civil_comments: TO-FILL-AFTER-PROBE
-      yelp_review_full: TO-FILL-AFTER-PROBE
+      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
   laya_multilingual:
     model_id: convaiinnovations/laya
-    revision: TODO-PIN-LAYA-REVISION
-    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
+    local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: multilingual
     repeats: 1
     datasets:
@@ -188,8 +192,8 @@ models:
       massive_km: TO-FILL-AFTER-PROBE
   laya_typed:
     model_id: convaiinnovations/laya
-    revision: TODO-PIN-LAYA-REVISION
-    local_repo: TODO-PIN-LAYA-LOCAL-SNAPSHOT-PATH
+    revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
+    local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: typed-decisions
     repeats: 1
     datasets:
@@ -198,18 +202,18 @@ models:
     - banking77
     - sms_spam
     - civil_comments
-    - yelp_review_full
+    - ultrafeedback_helpfulness
     head_max_len:
       agnews: TO-FILL-AFTER-PROBE
       emotiondair: TO-FILL-AFTER-PROBE
       banking77: TO-FILL-AFTER-PROBE
       sms_spam: TO-FILL-AFTER-PROBE
       civil_comments: TO-FILL-AFTER-PROBE
-      yelp_review_full: TO-FILL-AFTER-PROBE
+      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
   qwen_logit:
     model_id: Qwen/Qwen3-1.7B
-    revision: TODO-PIN-QWEN-REVISION
-    local_path: TODO-PIN-QWEN-LOCAL-SNAPSHOT-PATH
+    revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    local_path: ../models/hf-cache/hub/models--Qwen--Qwen3-1.7B/snapshots/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     repeats: 1
     datasets:
     - agnews
@@ -217,7 +221,7 @@ models:
     - banking77
     - sms_spam
     - civil_comments
-    - yelp_review_full
+    - ultrafeedback_helpfulness
     - massive_en
     - massive_zh
     - massive_km
@@ -237,7 +241,7 @@ models:
       banking77: TO-FILL-AFTER-PROBE
       sms_spam: TO-FILL-AFTER-PROBE
       civil_comments: TO-FILL-AFTER-PROBE
-      yelp_review_full: TO-FILL-AFTER-PROBE
+      ultrafeedback_helpfulness: TO-FILL-AFTER-PROBE
       massive_en: TO-FILL-AFTER-PROBE
       massive_zh: TO-FILL-AFTER-PROBE
       massive_km: TO-FILL-AFTER-PROBE
@@ -253,7 +257,7 @@ models:
     - banking77
     - sms_spam
     - civil_comments
-    - yelp_review_full
+    - ultrafeedback_helpfulness
     - massive_en
     - massive_zh
     - massive_km

@@ -407,3 +407,42 @@ def test_v2_config_loads_template_and_rejects_bad_split(tmp_path: Path) -> None:
     cfg.path.write_text(yaml.safe_dump(cfg.raw), encoding="utf-8")
     with pytest.raises(ValueError, match="split counts"):
         load_config(cfg.path)
+
+
+def test_ultrafeedback_candidates_group_completions_and_skip_non_numeric() -> None:
+    from jev_benchmarks.data import _split_candidates, ultrafeedback_candidates
+
+    def completion(response: str, rating: str) -> dict[str, object]:
+        return {"response": response, "annotations": {"helpfulness": {"Rating": rating}}}
+
+    rows = [
+        {
+            "instruction": f"Q{index}?",
+            "completions": [
+                completion(f"a{index}", "5"),
+                completion(f"b{index}", "N/A"),
+                completion(f"c{index}", str(1 + index % 5)),
+            ],
+        }
+        for index in range(40)
+    ]
+    spec = {
+        "name": "uf",
+        "task": "helpfulness_score",
+        "labels": ["1", "2", "3", "4", "5"],
+        "instructions": "How helpful?",
+    }
+    examples, groups = ultrafeedback_candidates(rows, spec)
+    assert len(examples) == 80  # the N/A completion of every prompt is dropped
+    assert all(row.question_type == "score" and 0 <= row.target_index < 5 for row in examples)
+    assert examples[0].text.startswith("Question: Q0?\n\nResponse: a0")
+    selected, merged = _split_candidates(
+        examples, {"pilot": 5, "calibration": 10, "test": 20}, 7, mass_groups=groups
+    )
+    assert merged == 40
+    by_split: dict[str, set[str]] = {}
+    for row in selected:
+        by_split.setdefault(row.split, set()).add(groups[row.example_id])
+    assert not by_split["pilot"] & by_split["test"]
+    assert not by_split["calibration"] & by_split["test"]
+    assert len({groups[row.example_id] for row in selected}) == len(selected)

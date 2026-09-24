@@ -215,6 +215,15 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
 4. Add a row to `study/docs/PLANS.md`.
 
+### Amendment 4 — score dataset swap (user-approved 2026-09-23)
+
+Yelp Review Full is replaced by **UltraFeedback helpfulness** (`openbmb/UltraFeedback` @ `40b4365`, MIT; `truthful_qa.jsonl` + `false_qa.jsonl`).
+- One item per prompt–completion pair with a numeric 1–5 helpfulness rating; N/A ratings are dropped.
+- All completions of a prompt share one split group.
+- Labels are the UltraFeedback rubric levels.
+- The Yelp terms restrict third-party disclosure, and hosted Jev receives the text (same reasoning as the ToxicChat swap, #13).
+- Limitation: the ratings are GPT-4 annotations.
+
 ### Amendment 3 — GLiNER2.5 descriptive contender (user-requested 2026-09-23)
 
 - `fastino/gliner2.5-multi-v1` at the upstream-pinned revision `235cf92d6d4318da9bfca0d08975c8fa7250d13b`, CPU, batch size 1. It reuses the upstream `gliner` adapter through the v2 local-process isolation.

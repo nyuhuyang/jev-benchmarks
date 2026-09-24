@@ -28,7 +28,7 @@ confirmatory test IDs, their dataset sets and Holm denominator `k` (9 or 3):
 ## Data and exclusions
 
 BTZSC AG News, DAIR Emotion and Banking77 are choice tasks. SMS Spam and Civil Comments are
-binary noul tasks, with toxicity `>= 0.5` positive for Civil Comments. Yelp Review Full is a
+binary noul tasks, with toxicity `>= 0.5` positive for Civil Comments. UltraFeedback helpfulness (MIT; `truthful_qa` + `false_qa` sources; one item per prompt–completion pair, all completions of a prompt grouped into one split) is a
 five-level score task. MASSIVE en-US, zh-CN and km-KH are choice intent tasks with English option
 descriptions. The full label universe is offered on every item. BTZSC out-of-scope rows with no
 unique positive hypothesis are excluded. Public benchmark contamination is possible.
@@ -43,7 +43,7 @@ from every primary contender on that dataset before sampling. If GLiNER alone ov
 item, GLiNER is excluded from that dataset and reported N/A; it never shrinks the shared primary
 pool. Primary inference never truncates. The
 separately labelled Laya as-shipped-head exploratory condition may truncate options. This
-favors shorter Civil Comments and Yelp texts.
+favors shorter Civil Comments and UltraFeedback texts.
 
 ## Conditions and operations
 
@@ -118,3 +118,7 @@ absolute-path file. No fine-tuning or benchmark-specific prompt tuning is perfor
   latency measurement and remains within the expected full-run time at about 0.3 seconds per call.
 - The user-requested Amendment 3 adds GLiNER2.5 as a descriptive contender and a pilot-v1 anchor
   command. Its dataset overflow never changes the primary common pool.
+- Amendment 4 (user-approved): Yelp Review Full was replaced by UltraFeedback helpfulness. The Yelp dataset terms restrict disclosure to third parties, and hosted Jev would receive the review text. UltraFeedback is MIT-licensed. Its 1–5 helpfulness ratings are GPT-4 annotations, not human labels, which is a stated limitation.
+- The Laya package source review (0.3.9 at HF revision `aa8c91c`) passed. The package loads only `rl_agent_config.json`, `model.safetensors` (safetensors), `tokenizer/` and `encoder/`. The repository's `rl_agent_api.py`, `rl_common.py` and `email_utils.py` are not referenced by the package, and no remote code is executed.
+- Group representatives are chosen by a seeded hash of the example ID rather than list position.
+
