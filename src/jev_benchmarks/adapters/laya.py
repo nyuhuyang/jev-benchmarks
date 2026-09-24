@@ -166,10 +166,10 @@ class LayaBackend:
         method_name = "forward" if timed_target is not self.agent else "_forward"
         original_forward = getattr(timed_target, method_name)
 
-        def timed_forward(batch: Any) -> Any:
+        def timed_forward(*args: Any, **kwargs: Any) -> Any:
             self.synchronize()
             start = time.perf_counter()
-            result = original_forward(batch)
+            result = original_forward(*args, **kwargs)
             self.synchronize()
             self.model_latency_seconds = time.perf_counter() - start
             return result

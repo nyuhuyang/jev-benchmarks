@@ -251,7 +251,7 @@ class FakeAgent:
         self.tok = FakeTokenizer()
         self.device = "cpu"
         self.cfg = {"max_len": 512}
-        self._forward = lambda batch: None
+        self._forward = lambda *args, **kwargs: None
 
     def _to_internal(self, question):
         return {
@@ -261,7 +261,8 @@ class FakeAgent:
         }
 
     def system_one(self, state, questions):
-        self._forward(None)
+        # Laya's DecisionModel.forward takes five tensors.
+        self._forward(None, None, None, None, qtype=None)
         return {"answers": {key: self.result for key in questions}}
 
 
