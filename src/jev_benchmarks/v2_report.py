@@ -109,11 +109,9 @@ def _select_attempt(
         latest: dict[tuple[str, str, str, str, int], Prediction] = {}
         for row in rows:
             latest[prediction_key(row)] = row
-        # Every call that received a response (success or unscorable) must share one snapshot;
-        # calls with no response ("unknown") produced no output and are scored as failures.
-        resolved = {
-            row.model_resolved for row in latest.values() if row.model_resolved != "unknown"
-        }
+        # Every call that received a response (success, unscorable or later retried) must share
+        # one snapshot; calls with no response ("unknown") produced no output and score as failures.
+        resolved = {row.model_resolved for row in rows if row.model_resolved != "unknown"}
         if expected.issubset(latest) and len(resolved) == 1:
             return path, list(latest.values())
     raise ValueError(f"no complete single-snapshot attempt for {backend}")
@@ -528,6 +526,14 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             "training variance.",
         ],
     }
+    absent_classes: dict[str, Any] = {}
+    for backend in sorted(FEWSHOT_BACKENDS & set(attempts)):
+        metadata = config.output_dir / backend / attempts[backend] / "fewshot-metadata.json"
+        if metadata.exists():
+            absent_classes[backend] = json.loads(metadata.read_text(encoding="utf-8"))[
+                "absent_class_held_out_rows"
+            ]
+    payload["few_label_absent_class_held_out_rows"] = absent_classes
     public_path = config.path.parent.parent / "docs" / "public-results.csv"
     public_rows: list[dict[str, str]] = []
     if public_path.exists():
@@ -568,6 +574,15 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         lines.append(
             f"| {row['id']} | {row['difference']:.4f} | "
             f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] |"
+        )
+    if absent_classes:
+        lines.extend(
+            ["", "## Few-label arm: held-out rows whose class was absent from training", ""]
+        )
+        lines.extend(
+            f"- {backend}: "
+            + ", ".join(f"{name} {count}" for name, count in sorted(counts.items()))
+            for backend, counts in absent_classes.items()
         )
     if public_rows:
         lines.extend(

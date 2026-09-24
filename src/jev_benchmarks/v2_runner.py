@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -232,6 +235,31 @@ def run_v2_backend(
     ):
         raise RuntimeError("OPENROUTER_API_KEY is required before Jev dispatch")
     root = config.output_dir / backend_name
+    # Attempt state and pending work are read under the lock, so overlapping runs cannot both
+    # dispatch the same paid calls.
+    with _dispatch_lock(root):
+        return _dispatch(config, backend_name, split, backend_factory, examples, root)
+
+
+@contextmanager
+def _dispatch_lock(root: Path) -> Iterator[None]:
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / "dispatch.lock").open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError(f"another {root.name} run holds the dispatch lock") from None
+        yield
+
+
+def _dispatch(
+    config: BenchmarkConfig,
+    backend_name: str,
+    split: str,
+    backend_factory: Any,
+    examples: list[Example],
+    root: Path,
+) -> Path:
     attempt = _attempt_dir(root)
     attempt.mkdir(parents=True, exist_ok=True)
     output = attempt / "predictions.jsonl"
@@ -254,7 +282,12 @@ def run_v2_backend(
     )
     secret = os.environ.get("OPENROUTER_API_KEY")
     snapshot = next(
-        (row["model_resolved"] for row in read_jsonl(output) if row.get("error") is None), None
+        (
+            row["model_resolved"]
+            for row in read_jsonl(output)
+            if row.get("model_resolved") not in (None, "unknown")
+        ),
+        None,
     )
     try:
         if backend_name.startswith("laya") or backend_name in {"qwen_logit", "gliner"}:
@@ -262,8 +295,12 @@ def run_v2_backend(
                 backend.warmup(pending[0][0])
         for example, repeat in pending:
             prediction: Prediction | None = None
+            served_hint: str | None = None
             try:
-                prediction = _validate_prediction(backend.predict(config.experiment_id, example))
+                raw = backend.predict(config.experiment_id, example)
+                # Keep the serving snapshot even if validation below rejects the prediction.
+                served_hint = raw.model_resolved if raw.model_resolved != "unknown" else None
+                prediction = _validate_prediction(raw)
                 if (
                     prediction.dataset != example.dataset
                     or prediction.example_id != example.example_id
@@ -297,7 +334,7 @@ def run_v2_backend(
             except Exception as exc:
                 if "snapshot changed" in str(exc):
                     raise
-                served = getattr(exc, "model_resolved", None)
+                served = getattr(exc, "model_resolved", None) or served_hint
                 if backend_name == "jev_openrouter" and served and snapshot and served != snapshot:
                     write_json(
                         attempt / "status.json",

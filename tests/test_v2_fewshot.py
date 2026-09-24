@@ -201,6 +201,9 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
         ]
         write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in predictions])
         (attempt / "status.json").write_text('{"state":"active"}', encoding="utf-8")
+    (cfg.output_dir / "prior" / "attempt-1" / "fewshot-metadata.json").write_text(
+        '{"absent_class_held_out_rows": {"agnews": 3}}', encoding="utf-8"
+    )
     json_path, _ = build_v2_report(cfg)
     with (json_path.parent / "metrics.csv").open() as handle:
         metrics = list(csv.DictReader(handle))
@@ -221,6 +224,7 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
     }
     assert any("not zero-shot" in text for text in payload["limitations"])
     assert payload["public_results"][0]["source"] == "elcronos"
+    assert payload["few_label_absent_class_held_out_rows"] == {"prior": {"agnews": 3}}
     assert "Relation to public results" in json_path.with_suffix(".md").read_text()
     assert fewshot.FEWSHOT_BACKENDS == {"qwen_probe", "tfidf_lr", "prior"}
 
@@ -285,3 +289,51 @@ def test_runner_stops_when_an_unscorable_call_reveals_a_new_snapshot(
         run_v2_backend(cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev())
     status = cfg.output_dir / "jev_openrouter" / "attempt-1" / "status.json"
     assert json.loads(status.read_text())["new"] == "snapshot-2"
+
+
+def test_invalid_prediction_from_a_new_snapshot_still_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Jev:
+        calls = 0
+
+        def predict(self, experiment_id, row):
+            Jev.calls += 1
+            good = report_prediction("jev_openrouter", row)
+            if Jev.calls == 1:
+                return good
+            return replace(good, model_resolved="snapshot-2", probabilities=(0.6, 0.45))
+
+        def close(self):
+            return None
+
+    with pytest.raises(RuntimeError, match="snapshot changed"):
+        run_v2_backend(cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev())
+
+
+def test_retried_rows_from_another_snapshot_reject_the_attempt(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
+    rows = [replace(report_prediction("qwen_logit", row), model_resolved="B") for row in manifest]
+    earlier = replace(rows[0], model_resolved="A", error="JevResponseError: bad answers")
+    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in [earlier, *rows]])
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "qwen_logit", manifest)
+
+
+def test_dispatch_lock_refuses_an_overlapping_run(tmp_path: Path) -> None:
+    from jev_benchmarks.v2_runner import _dispatch_lock
+
+    with _dispatch_lock(tmp_path / "jev_openrouter"):
+        with pytest.raises(RuntimeError, match="dispatch lock"):
+            with _dispatch_lock(tmp_path / "jev_openrouter"):
+                pass
+    with _dispatch_lock(tmp_path / "jev_openrouter"):
+        pass

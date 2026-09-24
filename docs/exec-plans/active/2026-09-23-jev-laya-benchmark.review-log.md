@@ -315,3 +315,11 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R2 high: a Jev 2xx with a changed model that failed parsing was written as "unknown" → ACCEPTED: `JevResponseError` carries the serving snapshot; the runner records it and stops on a snapshot change; attempt selection requires one known snapshot across every call that received a response. Calls with no response (timeouts, transport errors) stay failures without provenance, because they produced no output. Tests added.
 - R3 medium: ledger replay did not validate numbers → ACCEPTED: amounts and costs must be finite non-negative JSON numbers (bool excluded), else refuse; tests added.
 - R4 medium: the report did not include public results → ACCEPTED: v2.json `public_results` and a v2.md "Relation to public results" table from docs/public-results.csv; test added.
+
+### A5 build inspection 2 — Codex (fresh) — REVISE (inspection budget 2/2 used)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-inspect2/claudex-7rxt7ik8/result.json (cross_provider; base 0ee429b)
+- R1 high: a snapshot change was missed when the returned prediction failed validation → FIXED: the runner keeps the raw prediction's snapshot before validation.
+- R2 high: selection checked only the latest row per key, so a retry could hide an earlier response from another snapshot; restore used successful rows only → FIXED: selection and restore use every response-bearing row.
+- R3 medium: attempt state and pending work were computed before the Jev lock → FIXED: a per-backend `dispatch.lock` (flock) is held across attempt selection, pending computation and dispatch.
+- R4 medium: absent-class counts were not reported → FIXED: v2.json `few_label_absent_class_held_out_rows` and a v2.md section.
+- Regression tests added for each. **These fixes are NOT covered by a Codex inspection** (budget exhausted); another fresh inspection needs user approval.
