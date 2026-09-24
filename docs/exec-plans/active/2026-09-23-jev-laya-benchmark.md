@@ -110,7 +110,8 @@ The pinning list referenced in item 3 — every external artifact is pinned by i
    - Budget guard (#11):
      - Before dispatch, atomically reserve a conservative per-attempt cost from the **full serialized request body**: UTF-8 bytes (an upper bound on tokens) × list price × 1.5, with a minimum reservation (R2#7).
      - At most 4 attempts in flight, so outstanding liability is bounded by 4 reservations.
-     - After a response, the reservation is settled to `usage.cost`. A response lacking `usage.cost`, or a timeout, keeps its full reservation and pauses dispatch pending operator review.
+     - After a response, the reservation is settled to `usage.cost`. A **2xx** response lacking `usage.cost`, a timeout or a transport error keeps its full reservation and pauses dispatch pending operator review.
+     - A 429/5xx without `usage.cost` keeps its full reservation, which stays counted against the cap, and is retried within the attempt limit. A non-retryable 4xx without cost keeps its reservation and fails that item. Unbilled errors can therefore only over-count spend, never under-count it, so outstanding liability stays below the cap (review A5-F3).
      - **Refuse to dispatch** any request whose reservation would push reserved + settled spend above **$2.00** (R2#7).
 3. **`laya` adapter:**
    - Loads the pinned `laya` package and pinned HF revision, with `trust_remote_code=False` and safetensors only. The repository's `.py` files are **not executed** unless the pinned `laya` package imports them; verify by reading the package before P3, and record the finding.
@@ -211,15 +212,86 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 2. Write `study/jev_laya_benchmark_zh.Rmd` following `study/CLAUDE.md`:
    - Chinese prose, English figure labels, `ft_show()` tables, `code_folding: hide` + `toc_float`.
    - **Every number comes from `reg()`** (`kind = "source"`, with the run id and CSV hash in `note`).
-   - Sections: question; three routes; protocol; results by question type; calibration A vs B; order sensitivity; Jev non-determinism; latency (with the OpenRouter-hop caveat); limitations (contamination, OpenRouter vs direct API, pilot scale, Laya typed-decisions out-of-domain, zero-shot only / no fine-tuning); answers to wiki Q165/Q166/Q167/Q174/Q183/Q189/Q190/Q191/Q192.
+   - Sections: question; three routes; protocol; results by question type; calibration A vs B; order sensitivity; Jev non-determinism; latency (with the OpenRouter-hop caveat); limitations (contamination, OpenRouter vs direct API, pilot scale, Laya typed-decisions out-of-domain, the Jev/Laya/Qwen contrasts are zero-shot with no fine-tuning; the Amendment 5 few-label arm (`qwen_probe`, `tfidf_lr`, `prior`) is supervised on 200 calibration labels and labelled as such (review A5-R2-F3)); answers to wiki Q165/Q166/Q167/Q174/Q183/Q189/Q190/Q191/Q192.
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
 4. Add a row to `study/docs/PLANS.md`.
+
+### Amendment 5 — few-label arm, confirmatory set, framing (user-approved 2026-09-24)
+
+Source: the cross-provider-approved assessment `docs/exec-plans/active/2026-09-24-benchmark-assessment.md` (sha `851394f6…`). The user accepted P2, P3 and C1 from it.
+
+**A. Few-label arm (P2) — descriptive, never in C1–C3.** It answers the practical question the zero-shot comparison leaves open: does ~200 in-distribution labels plus a small local model match zero-shot Jev?
+- Three new contenders:
+  - `qwen_probe`: logistic regression on Qwen3-1.7B hidden states;
+  - `tfidf_lr`: logistic regression on character TF-IDF;
+  - `prior`: calibration-label class frequencies, a Brier/accuracy reference.
+- **Labels:** only the 200 `calibration` items of each dataset (each MASSIVE locale separately). Pilot and test labels are never used for fitting. Calibration and test are already content-group disjoint (P1).
+- **`qwen_probe` features:**
+  - model: the pinned Qwen3-1.7B;
+  - prompt: the zero-shot prompt (identity order, stable IDs, same prefill);
+  - position: the last prompt token, whose next token is the option ID;
+  - layer: output of decoder block 18 of 28 (`hidden_states[18]`), cast to fp32. The layer is fixed a priori from AnyJev's public report (block 18/28 for Qwen3-1.7B) and is not tuned.
+  - Extraction runs in the same minimal-environment local worker, after `v2-preregistered`, on `calibration` and `test` only.
+  - Features are saved as ignored artifacts `results/runs/<experiment>/qwen_probe/attempt-<n>/features-{calibration,test}.npz` (example IDs + float32 matrix). Their SHA-256 goes into the attempt metadata.
+- **`tfidf_lr` features:** `char_wb` 2–4-gram TF-IDF with sublinear tf. The vectorizer is fitted **inside each cross-fitting training fold**, together with the classifier, and refitted on all 200 calibration texts for test prediction. Held-out fold texts never shape their own features (review A5-F2). Character n-grams are used so zh/km need no word segmenter.
+- **Classifier (both):**
+  - multinomial logistic regression, L2, `C = 1.0`, `lbfgs`, `max_iter = 2000`, `random_state = seed`;
+  - Qwen features are standardized with statistics from the training fold;
+  - all hyperparameters are frozen; there is no search.
+  - Classes absent from a training fold get probability 0 in the full label vector (the ε floor applies to NLL and T fitting, as for Jev).
+  - Score (UltraFeedback) is nominal 5-class with `expected_score = Σ level·p`, as for GLiNER. noul is binary.
+- **Cross-fitting:**
+  - unstratified 5-fold split, `KFold(n_splits=5, shuffle=True, random_state=20260923)`, over the 200 calibration items for **every** dataset. Stratification is infeasible: Banking77 and MASSIVE calibration classes have 2–4 items each (review A5-F1). Out-of-fold probabilities are the contender's `calibration` predictions.
+  - A class absent from a training fold gets probability 0 on that fold's held-out rows. Its ε-floored contribution enters NLL and the temperature fit, and the absent-class count per dataset is reported;
+  - one refit on all 200 gives the `test` predictions.
+  - Condition A is the classifier probability. Condition B is the existing temperature fit on those out-of-fold predictions, so the A/B, selective-threshold and bootstrap machinery is reused unchanged.
+  - Stated limitation: the bootstrap refits T on resampled out-of-fold predictions but does not retrain the classifier, so few-label intervals understate training variance.
+  - `prior` uses training-fold frequencies for out-of-fold calibration rows and all-200 frequencies for test.
+- **Reporting:**
+  - pairwise with Jev (A-vs-A, B-vs-B, accuracy), unadjusted 95% CIs, labelled "uses 200 in-distribution labels; not zero-shot";
+  - excluded from the permutation and latency suites. Their prediction rows carry no latency fields in reports, since training and batch prediction time is not the common single-call operation (review A5-F5).
+- **Dependency:** `scikit-learn` in a new lazily imported `fewshot` extra, also added to `benchmark`.
+
+**B. Confirmatory family (P3).**
+- The three-way English set is AG News, DAIR Emotion, SMS Spam and Civil Comments:
+  - Banking77: Laya N/A (the 72 complete option descriptions need a ~1,280-token head);
+  - UltraFeedback: descriptive only, because its GPT-4 labels favour LLM-family contenders.
+- With 4 datasets (≥ 3), C1–C3 stay in the family: `k = 9` (C1–C3 × {accuracy, Brier A-vs-A, Brier B-vs-B}).
+- The exact test list is copied into `configs/v2.yaml` once the synthetic probe confirms that Laya-base returns full noul vectors. If it does not, the plan's own C1-only fallback (`k = 3`) applies.
+
+**C. Framing (C1).**
+- The report and the study Rmd call this a **same-run controlled re-check**, never a first result.
+- They include a "relation to public results" table (elcronos, open-alternative-jev, AnyJev, nibzard, Anthus, upstream pilot) with protocol differences.
+- The assessment's public-evidence priors are recorded in `PROTOCOL-v2.md` as non-binding expectations; the tests remain two-sided.
+- Accuracy differences smaller than the §13 sensitivity table's detectable range are reported as "unresolved".
+
+**D. Budget ledger hardening (review A5-R2-F1, A5-R2-F2).** These are defects in the existing Jev dispatch path, fixed before any hosted call.
+- **One experiment-level ledger:** `results/runs/<experiment>/jev_openrouter/budget-ledger.jsonl`.
+  - Every HTTP dispatch gets a fresh unique transaction ID (`uuid4`).
+  - Before dispatch, `{"event": "reserved", "txn": ID, "amount": A}` is appended and flushed with `fsync`.
+  - After the response, exactly one closing record is appended: `{"event": "settled", "txn": ID, "cost": C}` (C finite ≥ 0), or `{"event": "retained", "txn": ID}` (no valid cost).
+- **Reconstruction on start:** liability = Σ `cost` over `settled` + Σ `amount` over every reservation **not closed by `settled`**, i.e. both `retained` and unclosed reservations count at the full reservation.
+  - Only a valid finite-cost settlement replaces a reservation.
+  - The runner refuses to start if the ledger has a duplicate transaction ID, a closing record without a reservation, or two closing records for one ID.
+  - A crash between dispatch and response can therefore only over-count spend (review A5-R3-F1, A5-R3-F2).
+- **Single dispatcher:** the Jev run holds an exclusive non-blocking `fcntl.flock` on `jev_openrouter/budget.lock` for its whole lifetime. A second concurrent Jev process refuses to start.
+- **Accounting validation:** `usage` must be an object and `usage.cost` a finite number ≥ 0 (bool excluded). Otherwise a 2xx response is treated as missing its cost: the reservation is retained, the attempt is logged, and dispatch pauses. Non-2xx responses follow the rules above. A malformed value never reaches `Budget.settle`.
+- **Contract tests (fake transport):** an exception between reserve and response is counted on restart; a retained 429 reservation still counts after restart; duplicate, unmatched and double-closed transactions refuse to start; a concurrent lock is refused; `usage: null`, cost `"NaN"`, `NaN`, `-1`, `"0.1"` and `true` all pause without settling; the ledger survives the key-scrub writer.
+
+**Tasks (Amendment 5):**
+- [ ] `fewshot` extra + `uv.lock`; lazily imported `src/jev_benchmarks/fewshot.py` (feature extraction via the local worker, cross-fitting, prior, prediction writing into attempt namespaces).
+- [ ] CLI `jev-bench fewshot --config configs/v2.yaml --backend {qwen_probe,tfidf_lr,prior}`; refuses without the frozen manifest, like `run`.
+- [ ] Report: include the few-label contenders as descriptive rows and pairwise-vs-Jev intervals; add the relation-to-public-results table source.
+- [ ] Contract tests with fakes: no test label reaches fitting; out-of-fold coverage is exact; absent-class zero mapping; a Banking77-like case (72 classes, 2–3 items each) and a MASSIVE-like case run; TF-IDF vocabulary is per-fold (a held-out-only token has no feature); deterministic output for a fixed seed; features hash recorded; prior frequencies; latency fields absent for few-label rows.
+- [ ] `configs/v2.yaml`: few-label contender entries, and the confirmatory family filled after the probe.
+- [ ] `PROTOCOL-v2.md`: few-label section, confirmatory set, priors, framing.
+- [ ] Budget ledger hardening (D) in `jev_openrouter.py` and `v2_runner.py`, with its contract tests.
 
 ### Amendment 4 — score dataset swap (user-approved 2026-09-23)
 
 Yelp Review Full is replaced by **UltraFeedback helpfulness** (`openbmb/UltraFeedback` @ `40b4365`, MIT; `truthful_qa.jsonl` + `false_qa.jsonl`).
-- One item per prompt–completion pair with a numeric 1–5 helpfulness rating; N/A ratings are dropped.
-- All completions of a prompt share one split group.
+- Candidates are prompt–completion pairs with a numeric 1–5 helpfulness rating; N/A ratings are dropped.
+- All completions of a prompt form one group. The splitter keeps **one seeded-hash representative completion per prompt**, so the frozen estimand is the helpfulness of one randomly chosen completion per prompt. Items are then independent across prompts, as the bootstrap assumes. Other completions are not used (review A5-F4).
 - Labels are the UltraFeedback rubric levels.
 - The Yelp terms restrict third-party disclosure, and hosted Jev receives the text (same reasoning as the ToxicChat swap, #13).
 - Limitation: the ratings are GPT-4 annotations.

@@ -274,3 +274,37 @@ Budget settled $0.00011; nothing paused; 5 attempt rows; key-in-log check: False
 ### Commit gate
 
 The user approved commit + push to the fork after the Jev live smoke. The cross-provider inspection was **not performed**: Gemini had 0% quota; Opus 4.6 via agy hit its individual quota after reading the diff and produced no findings; GPT-OSS returned 503 with no capacity. This is an explicit, logged gap. Pre-commit scans passed: no API key, no personal paths, no raw runs or caches.
+
+## Amendment 5 (2026-09-24) — plan review
+- Trigger: user accepted P2 (few-label arm), P3 (confirmatory set = AG News/Emotion/SMS/Civil, UltraFeedback descriptive), C1 (framing as same-run controlled re-check) from the cross-provider-approved assessment (sha 851394f6…).
+- Reviewer: Codex via claudex-loop runner `review`, fresh session (earlier rounds 1–5 predate runner result files), CLI default model. Fallback: same-provider-on-unavailable.
+
+### A5 round 1 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-r1/claudex-4cpc5ko_/result.json (session 01a0d408-68ea-79a0-bb32-f9d7efaf0666, cross_provider, plan sha d56e79c0…)
+- Findings: F1 high (stratified 5-fold infeasible for Banking77/MASSIVE), F2 medium (TF-IDF fit leakage across folds), F3 medium (budget pause text vs code), F4 medium (UltraFeedback one-completion-per-prompt undeclared), F5 low (few-label latency fields).
+  Round 1 dispositions (host = Claude):
+  - F1 ACCEPTED. The fold policy is now unstratified KFold(5, shuffle=True, random_state=20260923) for every dataset, with the reason (Banking77/MASSIVE calibration classes have 2–4 items). The absent-class zero rule and its reporting are stated. Banking77-like and MASSIVE-like contract cases were added to the tasks.
+  - F2 ACCEPTED. TF-IDF is fitted inside each training fold together with the classifier and refitted on all 200 for test; a per-fold vocabulary contract test was added.
+  - F3 PARTLY ACCEPTED: plan text fixed, code unchanged. The plan text contradicted the implemented and intended behaviour. The budget-guard text now reads: pause on 2xx-without-cost, timeout or transport error; 429/5xx-without-cost keep the full reservation (counted against the cap) and retry; non-retryable 4xx keep the reservation and fail the item. Rationale: pausing on every 429 would halt runs on routine rate limits. Retaining reservations means unbilled errors can only over-count spend, so liability stays within the $2 cap. The code (jev_openrouter.py:175-197) already implements this.
+  - F4 ACCEPTED as "freeze the estimand". Amendment 4 and PROTOCOL now state one seeded-hash representative completion per prompt (independent items for the bootstrap); other completions are unused.
+  - F5 ACCEPTED. Few-label rows carry no latency fields in reports; added to the contract tests.
+  - Limitation noted: the study directory is outside this repo (../../study), which is expected.
+
+### A5 round 2 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-r2/claudex-urs877gb/result.json (same session, cross_provider, plan sha 83d198ad…). Prior F1–F5 confirmed resolved.
+- New findings: R2-F1 high (budget liability not durable across crash/concurrent processes), R2-F2 high (usage/cost not validated; NaN corrupts the cap), R2-F3 medium (P6 "zero-shot only" contradicts the few-label arm).
+  Round 2 dispositions (host = Claude):
+  - R2-F1 ACCEPTED (verified: v2_runner.py:70-74 rebuilds from post-response http-attempts only; Budget is in-memory). Added Amendment 5 section D: an fsync'd experiment-level budget ledger with reserved-before-dispatch and settled records; on start, unmatched reservations count in full; a single dispatcher via a non-blocking fcntl.flock for the process lifetime (a second process refuses); crash and concurrency contract tests; a task added to the checklist.
+  - R2-F2 ACCEPTED. Section D requires usage to be an object and cost a finite number >= 0 (bool excluded); malformed accounting on 2xx retains the reservation, logs and pauses, and never reaches Budget.settle. Fake-response cases: usage null, "NaN", NaN, -1, "0.1", true.
+  - R2-F3 ACCEPTED. The P6 limitation text now says the Jev/Laya/Qwen contrasts are zero-shot and the few-label arm is supervised on 200 calibration labels; PROTOCOL's closing sentence was updated the same way.
+
+### A5 round 3 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-r3/claudex-dph_codr/result.json (same session, cross_provider, plan sha 2eefdd97…). Prior R2 findings confirmed addressed.
+- Findings: R3-F1 high (retained reservation dropped on reconstruction), R3-F2 medium (no unique per-dispatch transaction ID).
+  Round 3 dispositions (host = Claude):
+  - R3-F1 ACCEPTED. Reconstruction now reads: liability = sum of settled costs + the full amount of every reservation not closed by a valid `settled` record, so `retained` and unclosed reservations both count in full. Test added: a retained 429 still counts after restart.
+  - R3-F2 ACCEPTED. Every HTTP dispatch gets a uuid4 transaction ID, carried on `reserved`, `settled` and `retained` records. Startup refuses on a duplicate ID, a closing record without a reservation, or a double close; tests added.
+
+### A5 round 4 — Codex — APPROVED
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-r4/claudex-17bphvzs/result.json (same session 01a0d408-…, cross_provider; observed model not reported). Plan sha 9ee02f224d3e3a7eefbcb37a502847446dc622c11320f7a2c9b20ea513963905; runner `check` matches.
+- Limitations: ledger and few-label arm are planned, not implemented; the code needs a fresh Codex inspection after the build.

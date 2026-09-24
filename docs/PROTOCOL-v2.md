@@ -28,7 +28,7 @@ confirmatory test IDs, their dataset sets and Holm denominator `k` (9 or 3):
 ## Data and exclusions
 
 BTZSC AG News, DAIR Emotion and Banking77 are choice tasks. SMS Spam and Civil Comments are
-binary noul tasks, with toxicity `>= 0.5` positive for Civil Comments. UltraFeedback helpfulness (MIT; `truthful_qa` + `false_qa` sources; one item per prompt–completion pair, all completions of a prompt grouped into one split) is a
+binary noul tasks, with toxicity `>= 0.5` positive for Civil Comments. UltraFeedback helpfulness (MIT; `truthful_qa` + `false_qa` sources; prompts grouped with all their completions; one seeded-hash representative completion per prompt is sampled, so the estimand is one randomly chosen completion per prompt) is a
 five-level score task. MASSIVE en-US, zh-CN and km-KH are choice intent tasks with English option
 descriptions. The full label universe is offered on every item. BTZSC out-of-scope rows with no
 unique positive hypothesis are excluded. Public benchmark contamination is possible.
@@ -106,7 +106,7 @@ exploratory or descriptive. Limitations include public-data contamination, small
 supports, length-selection bias, hosted-network versus local-hardware latency, OpenRouter versus a
 direct TypeSafe call, and the out-of-domain typed-decision checkpoint. Process environment
 isolation for local backends is not an OS sandbox; inspected package code can still read an
-absolute-path file. No fine-tuning or benchmark-specific prompt tuning is performed.
+absolute-path file. No fine-tuning or benchmark-specific prompt tuning is performed; the Jev/Laya/Qwen contrasts are zero-shot. The Amendment 5 few-label arm is supervised on the 200 calibration labels per dataset and is reported as such.
 
 ## Deviations from the locked plan
 
