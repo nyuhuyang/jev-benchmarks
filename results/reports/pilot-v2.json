@@ -1,0 +1,382 @@
+{
+ "label": "PILOT — plumbing and timing only; never supports result claims",
+ "backends": {
+  "jev_openrouter": {
+   "agnews": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     4
+    ],
+    "latency_p50_s": 0.2224,
+    "latency_p95_s": 0.331,
+    "cost_usd": 0.001661,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "banking77": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     72
+    ],
+    "latency_p50_s": 0.2475,
+    "latency_p95_s": 0.3336,
+    "cost_usd": 0.008635,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "civil_comments": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.2536,
+    "latency_p95_s": 0.3984,
+    "cost_usd": 0.001399,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "emotiondair": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     6
+    ],
+    "latency_p50_s": 0.2551,
+    "latency_p95_s": 0.329,
+    "cost_usd": 0.001703,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "massive_en": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.2499,
+    "latency_p95_s": 0.3354,
+    "cost_usd": 0.005181,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "massive_km": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.2493,
+    "latency_p95_s": 0.3259,
+    "cost_usd": 0.005267,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "massive_zh": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.2421,
+    "latency_p95_s": 0.3249,
+    "cost_usd": 0.005185,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "sms_spam": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.2553,
+    "latency_p95_s": 0.3508,
+    "cost_usd": 0.001345,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   },
+   "ultrafeedback_helpfulness": {
+    "calls": 90,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     5
+    ],
+    "latency_p50_s": 0.2519,
+    "latency_p95_s": 0.3869,
+    "cost_usd": 0.00182,
+    "resolved": [
+     "typesafe/jev-1.13-20260917"
+    ]
+   }
+  },
+  "laya_base": {
+   "agnews": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     4
+    ],
+    "latency_p50_s": 0.0616,
+    "latency_p95_s": 0.0907,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:english"
+    ]
+   },
+   "civil_comments": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.055,
+    "latency_p95_s": 0.0728,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:english"
+    ]
+   },
+   "emotiondair": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     6
+    ],
+    "latency_p50_s": 0.0611,
+    "latency_p95_s": 0.067,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:english"
+    ]
+   },
+   "sms_spam": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.0551,
+    "latency_p95_s": 0.06,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:english"
+    ]
+   },
+   "ultrafeedback_helpfulness": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     5
+    ],
+    "latency_p50_s": 0.0787,
+    "latency_p95_s": 0.1166,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:english"
+    ]
+   }
+  },
+  "laya_multilingual": {
+   "massive_en": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.0874,
+    "latency_p95_s": 0.1003,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:multilingual"
+    ]
+   },
+   "massive_km": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.0984,
+    "latency_p95_s": 0.1599,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:multilingual"
+    ]
+   },
+   "massive_zh": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.0961,
+    "latency_p95_s": 0.1395,
+    "cost_usd": 0,
+    "resolved": [
+     "convaiinnovations/laya@aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8:multilingual"
+    ]
+   }
+  },
+  "qwen_logit": {
+   "agnews": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     4
+    ],
+    "latency_p50_s": 0.205,
+    "latency_p95_s": 0.3162,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "banking77": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     72
+    ],
+    "latency_p50_s": 2.0688,
+    "latency_p95_s": 8.1174,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "civil_comments": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.1668,
+    "latency_p95_s": 0.2673,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "emotiondair": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     6
+    ],
+    "latency_p50_s": 0.1959,
+    "latency_p95_s": 0.2146,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "massive_en": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.6698,
+    "latency_p95_s": 1.0445,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "massive_km": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.6976,
+    "latency_p95_s": 1.0555,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "massive_zh": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     60
+    ],
+    "latency_p50_s": 0.6402,
+    "latency_p95_s": 0.6899,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "sms_spam": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     2
+    ],
+    "latency_p50_s": 0.1706,
+    "latency_p95_s": 0.1999,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   },
+   "ultrafeedback_helpfulness": {
+    "calls": 30,
+    "failures": 0,
+    "failure_messages": [],
+    "vector_lengths": [
+     5
+    ],
+    "latency_p50_s": 0.2968,
+    "latency_p95_s": 0.4404,
+    "cost_usd": 0,
+    "resolved": [
+     "Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    ]
+   }
+  }
+ },
+ "jev_ledger": {
+  "settled_usd": 0.032196,
+  "retained": 0,
+  "dispatches": 810
+ }
+}

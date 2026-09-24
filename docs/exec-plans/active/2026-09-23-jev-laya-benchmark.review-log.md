@@ -464,3 +464,7 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - User: "推送到 fork（7 个提交），然后进入冻结：运行 prepare，填入冻结记录需要的 6 个哈希，打 v2-preregistered 标签，接着跑 GLiNER 基准复现检查和 pilot。" The last fixes (e26a9a2) were frozen without a further Codex inspection, by user choice.
 - P3.0 anchor: the pilot-v1 manifest was regenerated and written in v1 seven-field format; sha256 equals the upstream ec064c52…. GLiNER needed an offline refs/main → 235cf92 (gliner2 fetches encoder_config at main). Comparison PASS; exact accuracy, Brier/F1 within 1e-6.
 - prepare: 5,570 rows (test 2,100 / calibration 1,800 / permutation 1,400 / pilot 270). Length exclusions: Civil 233, UltraFeedback 201. Emotion surprise test = 28 (availability-limited).
+
+## P3 pilot (2026-09-24)
+- All four zero-shot contenders ran on the frozen pilot split after v2-preregistered (verify_frozen OK). 0 failures in every contender × dataset cell; vector lengths match label counts; Jev: 810 calls, one snapshot (typesafe/jev-1.13-20260917), settled $0.032196, 0 retained.
+- Aggregate: results/reports/pilot-v2.{json,md} (PILOT: plumbing/timing only, no accuracy). Qwen two-digit scoring on Banking77 is slow (p50 2.1 s, p95 8.1 s).
