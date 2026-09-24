@@ -36,6 +36,7 @@ from .v2_runner import _dispatch_lock, prediction_key, verify_frozen
 # Like-for-like reading first (Amendment 7 C002): accuracy and B-vs-B, then A-vs-A supplements.
 HEADLINE_METRICS = (
     ("accuracy", "A_raw"),
+    ("accuracy", "B_scaled"),  # score datasets only: rounded expected level moves with T
     ("brier", "B_scaled"),
     ("test_coverage", "B_scaled"),
     ("brier", "A_raw"),
@@ -541,6 +542,13 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         ):
             for metric, condition in HEADLINE_METRICS:
                 shared = names if metric == "accuracy" else [n for n in names if n in vectors]
+                if metric == "accuracy" and condition == "B_scaled":
+                    # Argmax (choice/noul) accuracy is T-invariant; score accuracy is not.
+                    shared = [
+                        n
+                        for n in shared
+                        if n in vectors and jev[n]["test"][0].question_type == "score"
+                    ]
                 if not shared:
                     continue
                 base = {

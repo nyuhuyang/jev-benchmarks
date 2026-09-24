@@ -808,6 +808,10 @@ def test_report_orders_like_for_like_first_with_per_dataset_rows(
     payload = json.loads(json_path.read_text())
     order = [(row["metric"], row["condition"]) for row in payload["headline"][:3]]
     assert order == [("accuracy", "A_raw"), ("brier", "B_scaled"), ("test_coverage", "B_scaled")]
+    # Argmax accuracy is T-invariant: no B-scaled accuracy row for a choice-only set.
+    assert ("accuracy", "B_scaled") not in {
+        (row["metric"], row["condition"]) for row in payload["headline"]
+    }
     parents = {row["parent"] for row in payload["per_dataset"]}
     assert {"C1-accuracy", "C1-brier-A", "C1-brier-B"} <= parents
     ids = [row["id"] for row in payload["per_dataset"]]

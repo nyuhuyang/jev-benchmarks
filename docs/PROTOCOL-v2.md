@@ -198,8 +198,10 @@ Brier difference, means Jev leads.
 **Like-for-like reading.** Under condition B, Jev's temperature is fitted on the same 200
 calibration labels that train the few-label contenders, so **B-vs-B (Brier and coverage) plus
 accuracy** answers the headline question. Accuracy is unchanged by temperature, so A and B coincide
-for it. A-vs-A contrasts raw zero-shot output with supervised output; it is reported as a
-supplement, and the report and Rmd present B-vs-B first.
+for choice and noul datasets (argmax is T-invariant). Score accuracy rounds the expected level,
+which T can move, so score datasets also get a B-scaled accuracy row. A-vs-A contrasts raw
+zero-shot output with supervised output; it is reported as a supplement, and the report and Rmd
+present B-vs-B first.
 
 The metrics are accuracy, Brier A/B and coverage at 5% error under A/B. The primary set is the 4
 confirmatory datasets; the secondary set is every shared dataset. The coverage bootstrap

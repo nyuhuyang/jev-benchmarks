@@ -139,20 +139,26 @@ def test_frozen_hash_contract_and_key_scrub(
     cfg = config(tmp_path)
     manifest = cfg.output_dir / "manifest.jsonl"
     write_jsonl(manifest, [row.to_dict() for row in examples()])
+    summary = cfg.output_dir / "manifest-summary.json"
+    summary.write_text("{}", encoding="utf-8")
     protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
     protocol.parent.mkdir()
     protocol.write_text("frozen protocol", encoding="utf-8")
+    public = tmp_path / "docs" / "public-results.csv"
+    public.write_text("source\nx\n", encoding="utf-8")
+    probe = tmp_path / "results" / "reports" / "probe-v2.json"
+    probe.parent.mkdir(parents=True)
+    probe.write_text("{}", encoding="utf-8")
     freeze = tmp_path / "configs" / "freeze.json"
-    freeze.write_text(
-        json.dumps(
-            {
-                "config_sha256": sha256_file(cfg.path),
-                "manifest_sha256": sha256_file(manifest),
-                "protocol_sha256": sha256_file(protocol),
-            }
-        ),
-        encoding="utf-8",
-    )
+    record = {
+        "config_sha256": sha256_file(cfg.path),
+        "manifest_sha256": sha256_file(manifest),
+        "manifest_summary_sha256": sha256_file(summary),
+        "protocol_sha256": sha256_file(protocol),
+        "public_results_sha256": sha256_file(public),
+        "probe_results_sha256": sha256_file(probe),
+    }
+    freeze.write_text(json.dumps(record), encoding="utf-8")
     monkeypatch.setattr(
         "jev_benchmarks.v2_runner._relative_to_repo", lambda path: "configs/freeze.json"
     )
@@ -161,28 +167,25 @@ def test_frozen_hash_contract_and_key_scrub(
         lambda *args, **kwargs: SimpleNamespace(stdout=freeze.read_bytes()),
     )
     verify_frozen(cfg, manifest)
-    # The committed probe record is bound by hash when the freeze record names it.
-    probe = tmp_path / "results" / "reports" / "probe-v2.json"
-    probe.parent.mkdir(parents=True)
-    probe.write_text("{}", encoding="utf-8")
-    record = json.loads(freeze.read_text())
-    freeze.write_text(json.dumps({**record, "probe_results_sha256": sha256_file(probe)}))
-    verify_frozen(cfg, manifest)
-    probe.write_text('{"changed": true}', encoding="utf-8")
-    with pytest.raises(RuntimeError, match="probe record hash"):
-        verify_frozen(cfg, manifest)
-    probe.write_text("{}", encoding="utf-8")
-    public = tmp_path / "docs" / "public-results.csv"
-    public.write_text("source\nx\n", encoding="utf-8")
-    record = json.loads(freeze.read_text())
-    freeze.write_text(json.dumps({**record, "public_results_sha256": sha256_file(public)}))
-    verify_frozen(cfg, manifest)
-    public.write_text("source\nedited\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="public results hash"):
-        verify_frozen(cfg, manifest)
-    freeze.write_text(
-        json.dumps({"config_sha256": "bad", "manifest_sha256": "bad"}), encoding="utf-8"
-    )
+    # Every hash is required; a missing or placeholder value is refused.
+    for key in record:
+        for broken in ({k: v for k, v in record.items() if k != key}, {**record, key: "TO-FILL-X"}):
+            freeze.write_text(json.dumps(broken), encoding="utf-8")
+            with pytest.raises(RuntimeError, match=f"freeze record incomplete: {key}"):
+                verify_frozen(cfg, manifest)
+    freeze.write_text(json.dumps(record), encoding="utf-8")
+    # Each bound artifact is checked by content.
+    for path, message in (
+        (summary, "manifest summary hash"),
+        (public, "public results hash"),
+        (probe, "probe record hash"),
+    ):
+        original = path.read_text(encoding="utf-8")
+        path.write_text(original + " ", encoding="utf-8")
+        with pytest.raises(RuntimeError, match=message):
+            verify_frozen(cfg, manifest)
+        path.write_text(original, encoding="utf-8")
+    freeze.write_text(json.dumps({**record, "config_sha256": "bad"}), encoding="utf-8")
     with pytest.raises(RuntimeError, match="config hash"):
         verify_frozen(cfg, manifest)
     with pytest.raises(ValueError, match="API key"):

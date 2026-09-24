@@ -431,3 +431,11 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
   - A7R2-F2: docs/public-results.csv is bound by public_results_sha256 in the freeze record; verify_frozen checks it (test: an edited file is refused); v2.json records public_results_sha256.
   - A7R2-F3: corrected. The sum-of-squares Brier spans [0, 2] for all K; the chance baseline 1 − 1/K and typical values differ. PROTOCOL, the v2.md note and the CCFA review's C005 are updated (C005 marked as corrected by this finding).
   The CCFA review records C001–C007 as resolved at f659375 and still passes validation.
+
+### A7 round 3 — Codex — APPROVED
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-r3/claudex-j5venmy1/result.json (cross_provider; plan sha e4056cfaa5b743e04e12cfa3d135b7f568ab239b7bdab794559d743c1490efeb). No findings.
+
+### A7 build inspection 1 — Codex (fresh), base 35568e0
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-inspect1/claudex-21pbf8b0/result.json (cross_provider; base 35568e0; head 8e76aef) — REVISE
+- F1 medium: verify_frozen accepted records missing the new hashes → FIXED: all six hashes required; missing or TO-FILL values refused; each artifact checked (test covers every key and every artifact).
+- F2 medium: score accuracy is not temperature-invariant → FIXED: the secondary headline adds B-scaled accuracy rows for score datasets only; the protocol limits the invariance claim to choice/noul.

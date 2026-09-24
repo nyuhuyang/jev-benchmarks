@@ -28,6 +28,21 @@ def verify_frozen(config: BenchmarkConfig, manifest: Path) -> None:
     frozen = config.raw["frozen"]
     record_path = config.path.parent.parent / frozen["hashes_file"]
     record = json.loads(record_path.read_text(encoding="utf-8"))
+    required = (
+        "config_sha256",
+        "manifest_sha256",
+        "manifest_summary_sha256",
+        "protocol_sha256",
+        "public_results_sha256",
+        "probe_results_sha256",
+    )
+    incomplete = [
+        key
+        for key in required
+        if not isinstance(record.get(key), str) or record[key].startswith("TO-FILL")
+    ]
+    if incomplete:
+        raise RuntimeError(f"freeze record incomplete: {', '.join(incomplete)}")
     if record["config_sha256"] != sha256_file(config.path):
         raise RuntimeError("config hash mismatch with preregistered record")
     if record["manifest_sha256"] != sha256_file(manifest):
@@ -35,16 +50,13 @@ def verify_frozen(config: BenchmarkConfig, manifest: Path) -> None:
     protocol_path = config.path.parent.parent / frozen["protocol_file"]
     if record["protocol_sha256"] != sha256_file(protocol_path):
         raise RuntimeError("protocol hash mismatch with preregistered record")
-    summary = record.get("manifest_summary_sha256")
-    if summary is not None and summary != sha256_file(manifest.parent / "manifest-summary.json"):
+    if record["manifest_summary_sha256"] != sha256_file(manifest.parent / "manifest-summary.json"):
         raise RuntimeError("manifest summary hash mismatch with preregistered record")
-    public = record.get("public_results_sha256")
     public_path = config.path.parent.parent / "docs" / "public-results.csv"
-    if public is not None and public != sha256_file(public_path):
+    if record["public_results_sha256"] != sha256_file(public_path):
         raise RuntimeError("public results hash mismatch with preregistered record")
-    probe = record.get("probe_results_sha256")
     probe_path = config.path.parent.parent / "results" / "reports" / "probe-v2.json"
-    if probe is not None and probe != sha256_file(probe_path):
+    if record["probe_results_sha256"] != sha256_file(probe_path):
         raise RuntimeError("probe record hash mismatch with preregistered record")
     tag = str(frozen["tag"])
     if tag.startswith("TODO-PIN"):
