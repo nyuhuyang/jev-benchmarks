@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from jev_benchmarks.adapters.jev_openrouter import Budget, JevOpenRouterBackend
-from jev_benchmarks.adapters.laya import LayaBackend
+from jev_benchmarks.adapters.laya import LayaBackend, laya_head_fits, laya_request_tokens
 from jev_benchmarks.adapters.qwen_logit import QwenLogitBackend, softmax_scores, two_digit_joint
 from jev_benchmarks.models import Example
 
@@ -284,7 +284,7 @@ def test_laya_shapes_truncation_and_timing(fake_laya_common) -> None:
         "rev",
         "local",
         "english",
-        {"dataset": 80},
+        {"dataset": 192},
         questions,
         agent=FakeAgent({"probabilities": {"label_000": 0.1, "label_001": 0.9}}),
     )
@@ -308,6 +308,32 @@ def test_laya_shapes_truncation_and_timing(fake_laya_common) -> None:
     backend.agent.cfg["max_len"] = 3
     with pytest.raises(ValueError, match="truncate text"):
         backend.predict("run", example())
+    backend.head_max_len["dataset"] = 191
+    with pytest.raises(ValueError, match="below the shipped"):
+        backend.predict("run", example())
+
+
+def test_laya_head_fits_matches_build_sequence() -> None:
+    common = pytest.importorskip("laya.common")
+    agent = pytest.importorskip("laya").Agent
+
+    class Tok:
+        mask_token, mask_token_id, cls_token_id, sep_token_id = "[MASK]", 1, 2, 3
+
+        def __call__(self, text, **kwargs):
+            return {"input_ids": [10 + ord(char) for char in text]}
+
+    question = {
+        "type": "choice",
+        "instructions": "Pick",
+        "criteria": {"a": "short", "b": "a somewhat longer option"},
+    }
+    sizes, instruction, _, _ = laya_request_tokens(question, "x", Tok(), agent._to_internal)
+    internal = agent._to_internal(question)
+    full, _ = common.build_sequence(Tok(), {"text": "x"}, internal, 10**6, 10**6)
+    for head in range(1, sum(sizes) + instruction + 40):
+        built, _ = common.build_sequence(Tok(), {"text": "x"}, internal, 10**6, head)
+        assert laya_head_fits(sizes, instruction, head) == (built == full), head
 
 
 def test_laya_ten_questions(fake_laya_common) -> None:
@@ -316,7 +342,7 @@ def test_laya_ten_questions(fake_laya_common) -> None:
         "rev",
         "local",
         "english",
-        {"dataset": 80},
+        {"dataset": 192},
         {"choice": "Choose"},
         agent=FakeAgent({"probabilities": {"label_000": 0.2, "label_001": 0.8}}),
         latency_paraphrases=[f"p{index}" for index in range(10)],

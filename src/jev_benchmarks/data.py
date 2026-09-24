@@ -11,6 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from .adapters.qwen_logit import qwen_option_ids
 from .config import BenchmarkConfig
 from .io import read_jsonl, write_jsonl
 from .models import Example
@@ -560,7 +561,7 @@ def make_length_counters(
                 probe = JevOpenRouterBackend(model["model_id"], config.raw.get("questions", {}))
                 assigned[backend] = lambda row, probe=probe: len(probe.request_body(row))
             elif backend.startswith("laya"):
-                from .adapters.laya import LayaBackend, laya_request_tokens
+                from .adapters.laya import LayaBackend, laya_head_fits, laya_request_tokens
 
                 tokenizer = tokenizers[backend]
                 head_limit = model["head_max_len"][name]
@@ -583,10 +584,7 @@ def make_length_counters(
                     option_sizes, instructions, _, total = laya_request_tokens(
                         question, row.text, tokenizer, to_internal
                     )
-                    if (
-                        any(size > 49 for size in option_sizes)
-                        or sum(option_sizes) + instructions > head_limit
-                    ):
+                    if not laya_head_fits(option_sizes, instructions, head_limit):
                         return int(rule["context_budgets"][backend]) + 1
                     return total
 
@@ -595,13 +593,9 @@ def make_length_counters(
                 tok = tokenizers[backend]
 
                 def qwen_count(row: Example, *, tok: Any = tok, model: dict = model) -> int:
-                    ids = (
-                        [chr(65 + index) for index in range(len(row.labels))]
-                        if len(row.labels) <= 26
-                        else [f"{index + 1:02d}" for index in range(len(row.labels))]
-                    )
+                    prefill, ids = qwen_option_ids(len(row.labels))
                     options = "\n".join(
-                        f"{option_id}) {label}"
+                        f"{option_id.strip()}) {label}"
                         for option_id, label in zip(ids, row.labels, strict=True)
                     )
                     user = model["user_template"].format(
@@ -618,9 +612,7 @@ def make_length_counters(
                     )
                     return max(
                         len(
-                            tok(prompt + "Answer: " + option_id, add_special_tokens=False)[
-                                "input_ids"
-                            ]
+                            tok(prompt + prefill + option_id, add_special_tokens=False)["input_ids"]
                         )
                         for option_id in ids
                     )

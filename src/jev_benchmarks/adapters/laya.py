@@ -50,6 +50,15 @@ def laya_request_tokens(
     )
 
 
+def laya_head_fits(option_sizes: list[int], instruction_tokens: int, head: int) -> bool:
+    """Mirror laya.common.build_sequence: each option is cut at 48 tokens plus its mask, every
+    option is trimmed once ``head - sum(options) < 16``, and the instruction keeps the rest."""
+    return (
+        all(size <= 49 for size in option_sizes)
+        and sum(option_sizes) + max(instruction_tokens, 16) <= head
+    )
+
+
 class LayaBackend:
     name = "laya"
 
@@ -129,7 +138,9 @@ class LayaBackend:
         if any(size > 49 for size in option_sizes):
             raise ValueError("Laya option would exceed its 48-token per-option cap")
         head = self.head_max_len[example.dataset]
-        if sum(option_sizes) + instructions > head:
+        if head < self.default_head_max_len:
+            raise ValueError("Laya primary head is below the shipped head_max_len")
+        if not laya_head_fits(option_sizes, instructions, head):
             raise ValueError("Laya option head would truncate")
         if total > self.agent.cfg.get("max_len", 512):
             raise ValueError("Laya full request would truncate text")

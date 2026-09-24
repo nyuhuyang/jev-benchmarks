@@ -25,6 +25,17 @@ def two_digit_joint(
     )
 
 
+def qwen_option_ids(count: int) -> tuple[str, list[str]]:
+    """Return the assistant prefill and the scored option-ID suffixes.
+
+    Qwen merges a space with a following letter (" A" is one token) but splits digits, so
+    letters carry their own space after "Answer:" and two-digit IDs follow "Answer: ".
+    """
+    if count <= 26:
+        return "Answer:", [f" {chr(65 + index)}" for index in range(count)]
+    return "Answer: ", [f"{index + 1:02d}" for index in range(count)]
+
+
 class _HFScorer:
     def __init__(self, model_id: str, revision: str, local_path: str) -> None:
         import torch
@@ -211,19 +222,15 @@ class QwenLogitBackend:
 
     def predict(self, experiment_id: str, example: Example) -> Prediction:
         order = example.option_order or tuple(range(len(example.labels)))
-        labels = (
-            [chr(65 + index) for index in range(len(example.labels))]
-            if len(example.labels) <= 26
-            else [f"{index + 1:02d}" for index in range(len(example.labels))]
-        )
+        prefill, labels = qwen_option_ids(len(example.labels))
         lines = []
         for position, index in enumerate(order):
             label_id = labels[index] if example.letter_mode == "stable" else labels[position]
-            lines.append(f"{label_id}) {example.labels[index]}")
+            lines.append(f"{label_id.strip()}) {example.labels[index]}")
         user = self.user_template.format(
             text=example.text, options="\n".join(lines), question=example.instructions
         )
-        prompt = self.renderer(self.system_prompt, user) + "Answer: "
+        prompt = self.renderer(self.system_prompt, user) + prefill
         mode = self.score_modes[example.dataset]
         if mode not in {"letter", "two_digit_joint", "full_sequence"}:
             raise ValueError("Qwen score mode needs TO-FILL-AFTER-PROBE resolution")

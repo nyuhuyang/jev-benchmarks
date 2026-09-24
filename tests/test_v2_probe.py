@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,8 @@ class Tokenizer:
     mask_token = "[MASK]"
 
     def __call__(self, value, **kwargs):
-        return {"input_ids": [ord(char) for char in value]}
+        # BPE-like: a space joins the next character, as in Qwen (" A" is one token).
+        return {"input_ids": re.findall(r" ?\S", value)}
 
     def apply_chat_template(self, messages, **kwargs):
         return messages[0]["content"] + messages[1]["content"]
@@ -84,6 +86,7 @@ def config(tmp_path: Path) -> BenchmarkConfig:
                 "revision": "rev",
                 "local_repo": "local",
                 "checkpoint": "english",
+                "shipped_head_max_len": 192,
                 "datasets": ["agnews"],
                 "head_max_len": {"agnews": "TO-FILL-AFTER-PROBE"},
             },
@@ -92,6 +95,7 @@ def config(tmp_path: Path) -> BenchmarkConfig:
                 "revision": "rev",
                 "local_repo": "local",
                 "checkpoint": "multilingual",
+                "shipped_head_max_len": 256,
                 "datasets": [],
                 "head_max_len": {},
             },
@@ -100,6 +104,7 @@ def config(tmp_path: Path) -> BenchmarkConfig:
                 "revision": "rev",
                 "local_repo": "local",
                 "checkpoint": "typed-decisions",
+                "shipped_head_max_len": 256,
                 "datasets": [],
                 "head_max_len": {},
             },

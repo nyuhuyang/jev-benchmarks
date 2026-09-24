@@ -121,4 +121,24 @@ absolute-path file. No fine-tuning or benchmark-specific prompt tuning is perfor
 - Amendment 4 (user-approved): Yelp Review Full was replaced by UltraFeedback helpfulness. The Yelp dataset terms restrict disclosure to third parties, and hosted Jev would receive the review text. UltraFeedback is MIT-licensed. Its 1–5 helpfulness ratings are GPT-4 annotations, not human labels, which is a stated limitation.
 - The Laya package source review (0.3.9 at HF revision `aa8c91c`) passed. The package loads only `rl_agent_config.json`, `model.safetensors` (safetensors), `tokenizer/` and `encoder/`. The repository's `rl_agent_api.py`, `rl_common.py` and `email_utils.py` are not referenced by the package, and no remote code is executed.
 - Group representatives are chosen by a seeded hash of the example ID rather than list position.
+- Qwen prefill: letter IDs are scored as `" A"` after `"Answer:"` and two-digit IDs as `"01"` after
+  `"Answer: "`. Qwen merges a space into a following letter but splits digits, so with the plan's
+  single `"Answer: "` prefill the letter IDs were not prefix-compatible suffixes and fell back to
+  K-pass full-sequence scoring; the split prefill keeps the plan's letter and two-digit modes.
+- Laya primary `head_max_len` = `max(shipped head, smallest untruncated head)`, where the smallest
+  untruncated head is `sum(options) + max(instruction, 16)`: `laya.common.build_sequence` trims
+  every option once `head - sum(options) < 16`. The plan's bare `sum(options) + instruction` value
+  silently truncated options (found in review before any benchmark inference); a contract test
+  checks the rule against the pinned `build_sequence`.
+- Laya-base/typed are N/A on Banking77: its 72 complete option descriptions need a 1,280-token
+  head, above both the 512 and the 1,024 budgets. The Laya as-shipped-head exploratory condition on
+  Banking77 is dropped: head 192 would expose under 15% of the option tokens. It remains on MASSIVE
+  (multilingual checkpoint, 60 labels).
+- The MASSIVE primary head is above the multilingual checkpoint's shipped head of 256 and
+  therefore outside its training configuration; this is stated as a limitation.
+- Pinned Laya snapshot JSON files were hashed before and after the synthetic probe and were
+  unchanged, so `_fix_tokenizer_config` did not mutate the pinned artifacts.
+- GLiNER score items use nominal five-class probabilities (descriptive only), not `ordinal()`.
+- Dataset loads that use `data_files` (MASSIVE, UltraFeedback) need Hub metadata resolution;
+  `HF_HUB_OFFLINE=1` fails for them, so preparation runs online with pinned revisions.
 

@@ -164,6 +164,7 @@ models:
     revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: english
+    shipped_head_max_len: 192
     repeats: 1
     datasets:
     - agnews
@@ -184,6 +185,7 @@ models:
     revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: multilingual
+    shipped_head_max_len: 256
     repeats: 1
     datasets:
     - massive_en
@@ -198,6 +200,7 @@ models:
     revision: aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     local_repo: ../models/hf-cache/hub/models--convaiinnovations--laya/snapshots/aa8c91ca088ec597df95a0d1c76b3063cb2ae5e8
     checkpoint: typed-decisions
+    shipped_head_max_len: 256
     repeats: 1
     datasets:
     - agnews

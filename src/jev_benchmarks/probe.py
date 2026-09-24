@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from .adapters.qwen_logit import qwen_option_ids
 from .config import BenchmarkConfig, load_config
 from .data import _v2_candidates, _v2_rows, make_length_counters
 from .io import write_json
@@ -64,17 +65,13 @@ def _option_head(
     )
     if any(length > 49 for length in sizes):
         return None
-    return sum(sizes) + instruction_length
+    return sum(sizes) + max(instruction_length, 16)  # smallest head laya_head_fits accepts
 
 
 def _qwen_mode(example: Example, tokenizer: Any, model: dict[str, Any]) -> dict[str, Any]:
-    ids = (
-        [chr(65 + index) for index in range(len(example.labels))]
-        if len(example.labels) <= 26
-        else [f"{index + 1:02d}" for index in range(len(example.labels))]
-    )
+    prefill, ids = qwen_option_ids(len(example.labels))
     options = "\n".join(
-        f"{label_id}) {label}" for label_id, label in zip(ids, example.labels, strict=True)
+        f"{label_id.strip()}) {label}" for label_id, label in zip(ids, example.labels, strict=True)
     )
     user = model["user_template"].format(
         text="Synthetic text only.", options=options, question=example.instructions
@@ -89,7 +86,7 @@ def _qwen_mode(example: Example, tokenizer: Any, model: dict[str, Any]) -> dict[
             add_generation_prompt=True,
             enable_thinking=False,
         )
-        + "Answer: "
+        + prefill
     )
     prefix = tokenizer(prompt, add_special_tokens=False)["input_ids"]
     suffixes = []
@@ -192,8 +189,10 @@ def run_probe(path: Path, *, static_only: bool = False) -> Path:
             if sample.dataset in config.raw["models"][backend]["datasets"]:
                 minimum = _option_head(sample, tokenizer, sample.instructions)
                 budget = config.raw["length_rule"]["context_budgets"][backend]
+                shipped = int(config.raw["models"][backend]["shipped_head_max_len"])
+                primary = None if minimum is None else max(shipped, minimum)
                 dataset_result["laya_head_max_len"][backend] = (
-                    minimum if minimum is not None and minimum < budget else None
+                    primary if primary is not None and primary < budget else None
                 )
         result["datasets"][sample.dataset] = dataset_result
     adjusted = deepcopy(config.raw)

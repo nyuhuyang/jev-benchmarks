@@ -373,14 +373,14 @@ def test_laya_prepare_and_runtime_share_borderline_count(
     tok = Tokenizer()
     question = LayaBackend.question_for(row, {})
     sizes, instruction_tokens, _, total = laya_request_tokens(question, row.text, tok, to_internal)
-    head = sum(sizes) + instruction_tokens
+    head = sum(sizes) + max(instruction_tokens, 16)
     cfg.raw["models"]["laya_base"]["head_max_len"]["agnews"] = head
     counter = make_length_counters(
         cfg, tokenizer_loader=lambda path: tok, laya_to_internal=to_internal
     )["agnews"]["laya_base"]
     agent = SimpleNamespace(
         tok=tok,
-        cfg={"max_len": 100},
+        cfg={"max_len": 100, "head_max_len": head},
         device="cpu",
         _to_internal=to_internal,
     )
