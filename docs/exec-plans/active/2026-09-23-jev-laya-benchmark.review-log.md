@@ -308,3 +308,10 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 ### A5 round 4 — Codex — APPROVED
 - result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-r4/claudex-17bphvzs/result.json (same session 01a0d408-…, cross_provider; observed model not reported). Plan sha 9ee02f224d3e3a7eefbcb37a502847446dc622c11320f7a2c9b20ea513963905; runner `check` matches.
 - Limitations: ledger and few-label arm are planned, not implemented; the code needs a fresh Codex inspection after the build.
+
+### A5 build inspection 1 — Codex (fresh) — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a5-inspect1/claudex-pw_pjcom/result.json (cross_provider; builder claude; base 0ee429b, head 10eb90c)
+- R1 high: the few-label vs Jev report could crash on scalar-only score output → ACCEPTED: `vector_datasets` limits Brier A/B comparisons to datasets with full distributions on both sides; accuracy uses all shared datasets; test added.
+- R2 high: a Jev 2xx with a changed model that failed parsing was written as "unknown" → ACCEPTED: `JevResponseError` carries the serving snapshot; the runner records it and stops on a snapshot change; attempt selection requires one known snapshot across every call that received a response. Calls with no response (timeouts, transport errors) stay failures without provenance, because they produced no output. Tests added.
+- R3 medium: ledger replay did not validate numbers → ACCEPTED: amounts and costs must be finite non-negative JSON numbers (bool excluded), else refuse; tests added.
+- R4 medium: the report did not include public results → ACCEPTED: v2.json `public_results` and a v2.md "Relation to public results" table from docs/public-results.csv; test added.

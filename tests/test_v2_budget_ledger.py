@@ -115,6 +115,15 @@ def test_second_dispatcher_is_refused(tmp_path: Path) -> None:
             ],
             "twice",
         ),
+        (
+            [
+                {"event": "reserved", "txn": "a", "amount": 1},
+                {"event": "settled", "txn": "a", "cost": -1},
+            ],
+            "invalid cost",
+        ),
+        ([{"event": "reserved", "txn": "a", "amount": "NaN"}], "invalid amount"),
+        ([{"event": "reserved", "txn": "a", "amount": True}], "invalid amount"),
     ],
 )
 def test_inconsistent_ledger_refuses_to_start(tmp_path: Path, rows: list, message: str) -> None:
@@ -138,3 +147,14 @@ def test_ledger_rows_pass_the_key_scrub_writer(tmp_path: Path) -> None:
     jev.close()
     assert "fake-key" not in path.read_text()
     assert events(path)[-1] == {"cost": 0.001, "event": "settled", "txn": events(path)[0]["txn"]}
+
+
+def test_unscorable_2xx_keeps_the_serving_snapshot(tmp_path: Path) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import JevResponseError
+
+    body = {"model": "jev-new", "usage": {"cost": 0.001}, "answers": {}}
+    jev = backend(tmp_path / "budget-ledger.jsonl", lambda *_: (200, {}, body))
+    with pytest.raises(JevResponseError) as error:
+        jev.predict("run", ROW)
+    assert error.value.model_resolved == "jev-new"
+    jev.close()

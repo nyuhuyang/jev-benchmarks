@@ -43,6 +43,20 @@ def _gliner_exclusions(config: BenchmarkConfig) -> list[str]:
     ]
 
 
+def vector_datasets(
+    left: dict[str, dict[str, list[Prediction]]],
+    right: dict[str, dict[str, list[Prediction]]],
+    names: list[str],
+) -> list[str]:
+    """Datasets where both sides have full distributions; scalar-only outputs have no T."""
+    return [
+        name
+        for name in names
+        if fit_temperature(left[name].get("calibration", [])) is not None
+        and fit_temperature(right[name].get("calibration", [])) is not None
+    ]
+
+
 def _csv(path: Path, rows: list[dict[str, Any]], secret: str | None) -> None:
     columns = sorted({key for row in rows for key in row})
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -92,11 +106,15 @@ def _select_attempt(
             and json.loads(status.read_text(encoding="utf-8"))["state"] == "snapshot_changed"
         ):
             continue
-        resolved = {row.model_resolved for row in rows if row.error is None}
-        if expected.issubset({prediction_key(row) for row in rows}) and len(resolved) == 1:
-            latest: dict[tuple[str, str, str, str, int], Prediction] = {}
-            for row in rows:
-                latest[prediction_key(row)] = row
+        latest: dict[tuple[str, str, str, str, int], Prediction] = {}
+        for row in rows:
+            latest[prediction_key(row)] = row
+        # Every call that received a response (success or unscorable) must share one snapshot;
+        # calls with no response ("unknown") produced no output and are scored as failures.
+        resolved = {
+            row.model_resolved for row in latest.values() if row.model_resolved != "unknown"
+        }
+        if expected.issubset(latest) and len(resolved) == 1:
             return path, list(latest.values())
     raise ValueError(f"no complete single-snapshot attempt for {backend}")
 
@@ -393,8 +411,13 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     for few in sorted(FEWSHOT_BACKENDS & set(by_backend)):
         if "jev_openrouter" not in by_backend:
             continue
-        shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend[few]))
+        jev = by_backend["jev_openrouter"]
+        common = sorted(set(jev) & set(by_backend[few]))
+        vectors = vector_datasets(jev, by_backend[few], common)
         for metric, condition in (("accuracy", "A_raw"), ("brier", "A_raw"), ("brier", "B_scaled")):
+            shared = common if metric == "accuracy" else vectors
+            if not shared:
+                continue
             result = joint_paired_bootstrap(
                 {name: by_backend["jev_openrouter"][name]["test"] for name in shared},
                 {name: by_backend[few][name]["test"] for name in shared},
@@ -505,6 +528,12 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             "training variance.",
         ],
     }
+    public_path = config.path.parent.parent / "docs" / "public-results.csv"
+    public_rows: list[dict[str, str]] = []
+    if public_path.exists():
+        with public_path.open(encoding="utf-8") as handle:
+            public_rows = list(csv.DictReader(handle))
+    payload["public_results"] = public_rows
     json_path = report_dir / "v2.json"
     json_path.write_text(scrubbed_json(payload, secret) + "\n", encoding="utf-8")
     markdown_path = report_dir / "v2.md"
@@ -539,6 +568,23 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         lines.append(
             f"| {row['id']} | {row['difference']:.4f} | "
             f"[{row['ci95_low']:.4f}, {row['ci95_high']:.4f}] |"
+        )
+    if public_rows:
+        lines.extend(
+            [
+                "",
+                "## Relation to public results",
+                "",
+                "Same-run controlled re-check; public values use other protocols and samples.",
+                "",
+                "| source | contenders | task | metric | values | protocol |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        lines.extend(
+            f"| [{row['source']}]({row['url']}) | {row['contenders']} | {row['task']} | "
+            f"{row['metric']} | {row['values']} | {row['protocol_note']} |"
+            for row in public_rows
         )
     lines.extend(
         [

@@ -26,6 +26,14 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+class JevResponseError(RuntimeError):
+    """A response that could not be scored, carrying the snapshot that served it."""
+
+    def __init__(self, message: str, model_resolved: str | None) -> None:
+        super().__init__(message)
+        self.model_resolved = model_resolved
+
+
 def _retry_delay(value: str | None, attempt: int) -> float:
     if value is None:
         return float(min(2**attempt, 8))
@@ -49,13 +57,17 @@ def _transport(body: bytes, key: str, timeout: float) -> tuple[int, dict[str, st
         return error.code, dict(error.headers), json.loads(error.read())
 
 
+def _money(value: object) -> float | None:
+    """A finite, non-negative JSON number (booleans excluded), else None."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value) if math.isfinite(value) and value >= 0 else None
+
+
 def valid_cost(response: object) -> float | None:
     """Return ``usage.cost`` only when it is a finite, non-negative number."""
     usage = response.get("usage") if isinstance(response, dict) else None
-    cost = usage.get("cost") if isinstance(usage, dict) else None
-    if isinstance(cost, bool) or not isinstance(cost, int | float):
-        return None
-    return float(cost) if math.isfinite(cost) and cost >= 0 else None
+    return _money(usage.get("cost") if isinstance(usage, dict) else None)
 
 
 class BudgetLedger:
@@ -85,17 +97,23 @@ class BudgetLedger:
             if event == "reserved":
                 if txn in reserved:
                     raise RuntimeError(f"budget ledger has duplicate transaction {txn}")
-                reserved[txn] = float(row["amount"])
+                amount = _money(row.get("amount"))
+                if amount is None:
+                    raise RuntimeError(f"budget ledger has an invalid amount for {txn}")
+                reserved[txn] = amount
             elif event in {"settled", "retained"}:
                 if txn not in reserved:
                     raise RuntimeError(f"budget ledger closes unknown transaction {txn}")
                 if txn in closed:
                     raise RuntimeError(f"budget ledger closes transaction {txn} twice")
-                closed[txn] = float(row["cost"]) if event == "settled" else None
+                cost = _money(row.get("cost")) if event == "settled" else None
+                if event == "settled" and cost is None:
+                    raise RuntimeError(f"budget ledger has an invalid cost for {txn}")
+                closed[txn] = cost
             else:
                 raise RuntimeError(f"budget ledger has unknown event {event!r}")
         return sum(
-            cost if (cost := closed.get(txn)) is not None else amount
+            paid if (paid := closed.get(txn)) is not None else amount
             for txn, amount in reserved.items()
         )
 
@@ -276,6 +294,18 @@ class JevOpenRouterBackend:
                     raise RuntimeError(f"OpenRouter HTTP {status}")
                 break
         assert response is not None
+        served = response.get("model") if isinstance(response, dict) else None
+        try:
+            return self._parse(experiment_id, example, response, start)
+        except Exception as exc:
+            # Keep the serving snapshot on unscorable 2xx responses for provenance checks.
+            raise JevResponseError(
+                f"{type(exc).__name__}: {exc}", str(served) if served else None
+            ) from exc
+
+    def _parse(
+        self, experiment_id: str, example: Example, response: dict[str, Any], start: float
+    ) -> Prediction:
         answer = response["answers"][
             "label_0" if example.permutation_id == "latency-10" else "label"
         ]

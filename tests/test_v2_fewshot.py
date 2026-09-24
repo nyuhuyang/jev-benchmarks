@@ -17,7 +17,7 @@ from jev_benchmarks.config import BenchmarkConfig
 from jev_benchmarks.fewshot import FOLDS, PriorModel, cross_fit, make_model, run_fewshot
 from jev_benchmarks.io import read_jsonl, write_jsonl
 from jev_benchmarks.models import Example
-from jev_benchmarks.v2_report import build_v2_report
+from jev_benchmarks.v2_report import _select_attempt, build_v2_report, vector_datasets
 
 
 class Spy:
@@ -184,6 +184,11 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
     protocol = tmp_path / "docs" / "PROTOCOL-v2.md"
     protocol.parent.mkdir()
     protocol.write_text("frozen protocol", encoding="utf-8")
+    (tmp_path / "docs" / "public-results.csv").write_text(
+        "source,url,contenders,task,metric,values,protocol_note\n"
+        "elcronos,https://example.org,Jev; Laya,emotion,accuracy,Jev 0.587,raw ECE\n",
+        encoding="utf-8",
+    )
     manifest = report_examples()
     write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in manifest])
     monkeypatch.setattr("jev_benchmarks.v2_report.verify_frozen", lambda *args: None)
@@ -215,4 +220,68 @@ def test_report_drops_latency_for_few_label_rows_and_adds_jev_intervals(
         ("brier", "B_scaled"),
     }
     assert any("not zero-shot" in text for text in payload["limitations"])
+    assert payload["public_results"][0]["source"] == "elcronos"
+    assert "Relation to public results" in json_path.with_suffix(".md").read_text()
     assert fewshot.FEWSHOT_BACKENDS == {"qwen_probe", "tfidf_lr", "prior"}
+
+
+def test_scalar_only_outputs_are_excluded_from_vector_comparisons() -> None:
+    manifest = report_examples()
+    vector = {"agnews": {"calibration": [report_prediction("prior", row) for row in manifest]}}
+    scalar = {
+        "agnews": {
+            "calibration": [
+                replace(
+                    report_prediction("jev_openrouter", row),
+                    question_type="score",
+                    probabilities=(),
+                    expected_score=1.5,
+                )
+                for row in manifest
+            ]
+        }
+    }
+    assert vector_datasets(vector, vector, ["agnews"]) == ["agnews"]
+    assert vector_datasets(scalar, vector, ["agnews"]) == []
+
+
+def test_attempt_with_an_unscorable_call_from_another_snapshot_is_rejected(tmp_path: Path) -> None:
+    cfg = report_config(tmp_path)
+    manifest = report_examples()
+    attempt = cfg.output_dir / "qwen_logit" / "attempt-1"
+    rows = [report_prediction("qwen_logit", row) for row in manifest]
+    rows[0] = replace(rows[0], model_resolved="snapshot-2", error="JevResponseError: bad answers")
+    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    with pytest.raises(ValueError, match="single-snapshot"):
+        _select_attempt(cfg, "qwen_logit", manifest)
+    rows[0] = replace(rows[0], model_resolved="unknown", error="TimeoutError")
+    write_jsonl(attempt / "predictions.jsonl", [row.to_dict() for row in rows])
+    assert _select_attempt(cfg, "qwen_logit", manifest)[0] == attempt
+
+
+def test_runner_stops_when_an_unscorable_call_reveals_a_new_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from jev_benchmarks.adapters.jev_openrouter import JevResponseError
+    from jev_benchmarks.v2_runner import run_v2_backend
+
+    cfg = report_config(tmp_path)
+    write_jsonl(cfg.output_dir / "manifest.jsonl", [row.to_dict() for row in report_examples()])
+    monkeypatch.setattr("jev_benchmarks.v2_runner.verify_frozen", lambda *args: None)
+
+    class Jev:
+        calls = 0
+
+        def predict(self, experiment_id, row):
+            Jev.calls += 1
+            if Jev.calls == 1:
+                return report_prediction("jev_openrouter", row)
+            raise JevResponseError("KeyError: 'answers'", "snapshot-2")
+
+        def close(self):
+            return None
+
+    with pytest.raises(RuntimeError, match="snapshot changed"):
+        run_v2_backend(cfg, "jev_openrouter", split="calibration", backend_factory=lambda *_: Jev())
+    status = cfg.output_dir / "jev_openrouter" / "attempt-1" / "status.json"
+    assert json.loads(status.read_text())["new"] == "snapshot-2"

@@ -297,6 +297,17 @@ def run_v2_backend(
             except Exception as exc:
                 if "snapshot changed" in str(exc):
                     raise
+                served = getattr(exc, "model_resolved", None)
+                if backend_name == "jev_openrouter" and served and snapshot and served != snapshot:
+                    write_json(
+                        attempt / "status.json",
+                        {"state": "snapshot_changed", "old": snapshot, "new": served},
+                        secret=secret,
+                    )
+                    raise RuntimeError(
+                        "Jev resolved snapshot changed; start a new attempt"
+                    ) from exc
+                snapshot = snapshot or served
                 if isinstance(exc, BudgetExceeded):
                     write_json(attempt / "status.json", {"state": "cost_exhausted"}, secret=secret)
                     raise
@@ -305,7 +316,7 @@ def run_v2_backend(
                     config.experiment_id,
                     backend_name,
                     str(config.raw["models"][backend_name]["model_id"]),
-                    "unknown",
+                    served or "unknown",
                     example.dataset,
                     example.example_id,
                     example.target_index,
