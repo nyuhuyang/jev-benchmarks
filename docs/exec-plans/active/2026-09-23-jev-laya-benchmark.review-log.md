@@ -341,3 +341,36 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
   Amendment 6 round 1 dispositions (host = Claude):
   - A6-F1 ACCEPTED. The plan now states that the v2-probe record (8720bb5) stays the capability check for the retained contenders, and that laya_typed's exclusions are a subset of laya_base's (same tokenizer, larger budget), so removing contenders only shrinks the common exclusion. Final counts come from `prepare` and the manifest summary. run_probe now iterates the configured Laya backends (code done), and a rerun needs a new probe tag.
   - A6-F2 ACCEPTED. run_anchor now removes OPENROUTER_API_KEY and TYPESAFE_API_KEY and sets HF_HUB_OFFLINE=1 before constructing GLiNERV2Backend; a contract test asserts both at construction. The minimal-env worker is not used because the frozen pilot-v1 config has no local_runtime, and editing it would change the anchor's input.
+
+### A6 round 2 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r2/claudex-jmz3ufts/result.json (cross_provider; plan sha 73626691…). A6-F1 and A6-F2 confirmed resolved.
+  Amendment 6 round 2 disposition (host = Claude):
+  - A6-R2-F1 ACCEPTED. Added the Amendment 6 task: the README v2 workflow removes the `--backend gliner` v2 run (GLiNER only via the pilot-v1 anchor command), adds the three `jev-bench fewshot` commands, and lists no latency split. It will be done in the Amendment 6 build together with the config, derived-suite and protocol tasks.
+
+### A6 round 3 — Codex — FAILED (provider_unavailable)
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r3/claudex-f6ekt8aj/result.json — Codex usage limit ("try again at Sep 27th, 2026 11:31 AM"). fallback_eligible=true.
+- Policy same-provider-on-unavailable → fresh Claude reviewer; assurance=degraded_same_provider.
+
+### A6 round 3 — Claude fallback (degraded_same_provider) — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r3-fallback/claudex-1fe1_3q8/result.json (fresh Claude session; assurance degraded_same_provider; fallback from /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r3/claudex-f6ekt8aj/result.json; plan sha 06feb388…)
+- Findings: F1 medium (headline estimand undefined), F2 medium (anchor HF_HOME not pinned; deny-list isolation), F3 low (stale latency text; latency reference undefined), F4 low (probe tag hard-coded; typed tokenizer loaded unconditionally; CLI choice), F5 low (few-label threshold transfer).
+  Fallback round 3 dispositions (host = Claude):
+  - A6-R3-F1 ACCEPTED. Added a "Headline estimands" block. The primary set is the 4 confirmatory datasets, the secondary set is all shared datasets (vector metrics only where both sides have distributions). "Advantage left" is reported as side-by-side paired differences on identical items (Jev − qwen_logit and Jev − X), with no ratio. Metrics: accuracy, Brier A/B, and coverage at 5% under A and B. The coverage bootstrap re-selects each side's threshold on the resampled calibration set (refitting T for B), and no feasible threshold counts as 0, with flags reported. Estimation only, unadjusted, no winner claims. Code task added.
+  - A6-R3-F2 ACCEPTED (stronger option). The anchor will run through the minimal-env LocalProcessBackend worker with the v2 local_runtime (pinned HF_HOME, offline, scratch HOME, no inherited credentials). The runtime environment is not part of the frozen pilot-v1 input. The earlier in-process scrub task is marked superseded; code task and contract test added.
+  - A6-R3-F3 ACCEPTED. The superseded base-plan latency passages are listed. The latency reference is test-split per-call p50/p95 (workload `test-reference` in latency.csv), with one unrecorded warm-up per invocation for local backends and serial Jev dispatch in the runner loop. It is placed as item 5 of the reporting order.
+  - A6-R3-F4 ACCEPTED. Probe tag read from the probe config (default v2-probe); laya_base checks guarded; make_length_counters loads only configured Laya tokenizers; laya_typed removed from the CLI run choices; a prepare-counter test on the A6 config.
+  - A6-R3-F5 ACCEPTED. The threshold-transfer limitation is stated, and realized selective error is reported next to coverage.
+
+### A6 round 4 — Claude fallback (degraded_same_provider) — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r4-fallback/claudex-7hul8n0h/result.json (resumed fallback session; plan sha 038bbcb0…). Round-3 findings confirmed reflected.
+  Fallback round 4 dispositions (host = Claude):
+  - A6-R4-F1 ACCEPTED. The interface is now explicit: LocalProcessBackend takes `runtime` as a separate mapping (defaulting to config.raw["local_runtime"]). The anchor passes the v2 runtime together with the pilot-v1 config path, so GLiNER is built from pilot-v1's models.gliner, and v2.yaml needs no gliner entry. Two tests: an environment capture, and an in-process worker.main on a pilot-v1 config with the GLiNER constructor monkeypatched at import level, asserting the pilot-v1 model_id/revision/device. Verified: the pinned cache holds the GLiNER model.safetensors, not just its tokenizer.
+  - A6-R4-F2 ACCEPTED. local_runtime paths resolve against the repo root, like output_dir (config.py:24-26). The runner refuses to start a worker if hf_home is missing. The test asserts HF_HOME equals the resolved absolute pinned cache.
+  - A6-R4-F3 ACCEPTED. Jev predictions record dispatch_attempts. The latency reference uses first-attempt-success rows, and the retried share is reported separately.
+  - A6-R4-F4 ACCEPTED. The primary-set zero-shot-gap rows for accuracy, Brier A and Brier B are the C1 estimates (identical numbers) and carry the C1 Holm decision and k=9. Only the coverage and few-label-gap rows are new estimation-only quantities.
+  This is round 5 of 5.
+
+### A6 round 5 — Claude fallback (degraded_same_provider) — APPROVED
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r5-fallback/claudex-bavnnzw5/result.json (plan sha e9fb95818243f989e4dfecc9f02f1847e270be1fb96add6c36153a2597a4f568); runner check: "Approval matches the current plan; assurance=degraded_same_provider".
+- Assurance note: Codex was unavailable (usage limit until 2026-09-27 11:31); rounds 3–5 were fresh-then-resumed Claude fallback reviews, not cross-provider.
+- Minor ambiguity noted by the reviewer: how `anchor` locates configs/v2.yaml → resolved in the build as the sibling `configs/v2.yaml` of the pilot-v1 config.

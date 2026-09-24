@@ -222,6 +222,17 @@ Source: the approved assessment's value analysis. Public work already covers zer
 
 > **When a local model gets the same ~200 labels, how much of zero-shot Jev's advantage is left — in accuracy, in calibration (A-vs-A, B-vs-B), and in how much traffic can be automated at a 5% error budget?**
 
+**Headline estimands (frozen before `v2-preregistered`; estimation only, review A6-R3-F1).**
+- **Primary set:** the 4 confirmatory datasets (AG News, DAIR Emotion, SMS Spam, Civil Comments), equal-weighted. **Secondary:** every dataset shared by Jev and the contender (9 for the few-label arm; vector metrics only where both sides return full distributions).
+- **"How much of Jev's advantage is left"** is reported as two paired differences on identical test items, side by side:
+  - zero-shot gap: Jev − `qwen_logit`;
+  - few-label gap: Jev − X, for X ∈ {`qwen_probe`, `tfidf_lr`, `prior`}.
+  - No ratio is reported, because it is unstable when the zero-shot gap is near 0.
+- **Metrics:** accuracy (A_raw), Brier A_raw, Brier B_scaled, and **coverage at 5% error** under A_raw and B_scaled.
+- **Coverage difference:** a paired, dataset-stratified bootstrap (2,000 resamples) resamples calibration and test items and **re-selects each side's threshold on the resampled calibration set** (for B, after refitting T). A dataset with no feasible threshold contributes coverage 0; the per-dataset no-feasible flags are reported. Realized test selective error is reported next to coverage.
+- **Estimation only:** unadjusted 95% intervals, no Holm, no winner claims.
+- **Relation to C1 (review A6-R4-F4):** on the primary set, the zero-shot-gap rows for accuracy, Brier A_raw and Brier B_scaled **are** the C1 estimates: same bootstrap, same seed, identical numbers. They carry the C1 Holm decision and k = 9. Only the coverage rows and the few-label-gap rows are new estimation-only quantities.
+
 **Unchanged:** the frozen confirmatory family (C1–C3 zero-shot, k = 9, AG News / Emotion / SMS / Civil), the few-label arm (Amendment 5, descriptive), the budget and provenance rules, and all metrics.
 
 **Cuts:**
@@ -236,25 +247,49 @@ Source: the approved assessment's value analysis. Public work already covers zer
 - Final exclusion counts come from `jev-bench prepare` on the Amendment 6 config and are reported from `manifest-summary.json`.
 - `run_probe` now follows the configured Laya backends. A rerun needs a new probe tag, because the current config no longer matches `v2-probe`.
 
-**Anchor isolation (review A6-F2).**
-- The pilot-v1 config has no `local_runtime`, so the P3.0 anchor loads GLiNER in-process.
-- Before loading, it removes `OPENROUTER_API_KEY` and `TYPESAFE_API_KEY` from the environment and sets `HF_HUB_OFFLINE=1`, so it uses only the pinned cache.
-- A contract test checks that the key is absent and the hub is offline when the backend is constructed.
+**Anchor isolation (review A6-F2, A6-R3-F2).**
+- The P3.0 anchor runs GLiNER through the same minimal-environment `LocalProcessBackend` worker as the other local models. The runtime (`HOME` = scratch home, `HF_HOME` = pinned `experiments/models/hf-cache`, `HF_HUB_OFFLINE=1`, a minimal `PATH`, no inherited credentials) comes from `configs/v2.yaml` `local_runtime`.
+- The runtime environment is not part of the frozen pilot-v1 input (config, manifest, published report), so the anchor's input is unchanged.
+- **Interface (review A6-R4-F1):** `LocalProcessBackend(config, name, attempt, *, runtime=None)` takes the runtime as a separate mapping, defaulting to `config.raw["local_runtime"]`.
+  - The anchor passes the v2 `local_runtime` as `runtime`, and passes the **pilot-v1** config path to the worker, so `_make_v2_backend` builds GLiNER from pilot-v1's `models.gliner` (model_id, revision, device).
+  - v2.yaml no longer needs a `gliner` entry.
+- **Path resolution (review A6-R4-F2):** `local_runtime` paths are resolved like `output_dir`: relative paths against the repo root (`config.path.parent.parent`). The runner refuses to start a worker if `hf_home` does not exist.
+- **Contract tests:**
+  - (1) the captured environment of `LocalProcessBackend` is exactly `PATH`, `HOME`, `HF_HOME` and `HF_HUB_OFFLINE`, with `HF_HOME` equal to the resolved absolute pinned cache;
+  - (2) `worker.main` run in-process on a pilot-v1 config, with the GLiNER constructor monkeypatched at import level, builds the backend from pilot-v1's `model_id`, `revision` and `device`.
+
+**Latency reference (review A6-R3-F3).**
+- The latency suite is superseded, and so are these base-plan passages: P4.2 "latency" runs and warm-ups, P5 "per-question latency at 1 vs 10 questions", P6 vendoring of a latency-suite `latency.csv`, and the Risks bullet on the 10-question suite.
+- The reference is each zero-shot contender's per-call wall latency (and local model-only latency) p50/p95 on the ordinary **test** split. It is written to `latency.csv` as workload `test-reference`.
+- Local backends make one unrecorded warm-up call per run invocation (existing runner behaviour). Jev calls are dispatched serially by the runner loop.
+- **Retries (review A6-R4-F3):** each Jev `Prediction` records `dispatch_attempts`, the number of HTTP attempts. The latency reference uses first-attempt-success rows only; the share of retried rows is reported separately. Retry-after and backoff sleeps therefore never enter the reference.
+- The latency reference is labelled deployment-specific: hosted includes an OpenRouter hop; local is M1 Pro MPS.
+
+**Few-label threshold transfer (review A6-R3-F5).** The few-label arm chooses its threshold on out-of-fold predictions from models trained on about 160 items, then applies it to test predictions from the all-200 refit. Their confidence distributions can differ, so realized test selective error can drift from 5% for reasons other than calibration. This is stated as a limitation, and realized selective error is reported next to coverage.
 
 **Reporting order (report and study Rmd):**
-1. The headline question: few-label contenders versus zero-shot Jev (accuracy, Brier A/B, coverage at 5% error).
+1. The headline estimands above, on the primary set, then the secondary set.
 2. The confirmatory zero-shot family (C1–C3).
 3. Calibration A vs B and selective automation per contender.
 4. Secondary: multilingual (MASSIVE en/zh/km), yes/no and score datasets, AG News order sensitivity.
-5. The relation-to-public-results table and limitations.
+5. The latency reference (deployment-specific).
+6. The relation-to-public-results table and limitations.
 
 **Tasks (Amendment 6):**
 - [ ] `build_derived_suites` takes `permutation_datasets` (default unchanged); `load_v2_examples` passes `dataset.permutation_datasets`; contract test.
 - [ ] `configs/v2.yaml`: `permutation_datasets: [agnews]`, `latency_items: 0`; remove the `laya_typed` and `gliner` models.
 - [ ] `PROTOCOL-v2.md`: Amendment 6 section; latency, permutation and contender text updated.
 - [ ] Report/Rmd section order as above (P5/P6).
+- [ ] Headline estimands: a `test_coverage` metric in `joint_paired_bootstrap` (threshold re-selected on the resampled calibration set, no feasible threshold → 0); headline rows (family `headline_estimation`) for Jev − `qwen_logit` and Jev − X on the primary and secondary sets; contract tests (A6-R3-F1).
+- [ ] Anchor via the minimal-env worker: a `runtime` argument on `LocalProcessBackend`, `local_runtime` paths resolved against the repo root, a pilot-v1 model spec in the worker; the two contract tests above (A6-R3-F2, A6-R4-F1, A6-R4-F2).
+- [ ] `dispatch_attempts` on Jev predictions; the latency reference uses first-attempt-success rows and reports the retried share; test (A6-R4-F3).
+- [ ] Headline primary-set zero-shot rows reuse the C1 results, with the Holm decision and k; test (A6-R4-F4).
+- [ ] `latency.csv` filled with `test-reference` rows from the test split when there is no latency suite; test (A6-R3-F3).
+- [ ] Probe tag read from the probe config (`probe_tag`, default `v2-probe`); `laya_base` checks guarded; `make_length_counters` loads only configured Laya tokenizers; `laya_typed` removed from the CLI run choices; test that `prepare` counters build on the Amendment 6 config (A6-R3-F4).
+- [ ] Few-label threshold-transfer limitation in the report and PROTOCOL (A6-R3-F5).
+- [ ] README v2 workflow: remove the v2 `gliner` run command (GLiNER only via `jev-bench anchor --config configs/pilot-v1.yaml`), add `jev-bench fewshot --backend {qwen_probe,tfidf_lr,prior}`, and drop any latency split (review A6-R2-F1).
 - [x] `run_probe` follows the configured Laya backends (A6-F1).
-- [x] The anchor drops credentials and forces offline before loading GLiNER, with a contract test (A6-F2).
+- [x] The anchor drops credentials and forces offline before loading GLiNER, with a contract test (A6-F2) — superseded by the worker task below (A6-R3-F2).
 
 ### Amendment 5 — few-label arm, confirmatory set, framing (user-approved 2026-09-24)
 
