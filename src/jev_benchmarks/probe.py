@@ -128,7 +128,16 @@ def run_probe(path: Path, *, static_only: bool = False) -> Path:
         for row in config.raw["dataset"]["datasets"]:
             if by_name[row["name"]]["instructions"] != row["instructions"]:
                 raise ValueError("probe dataset instructions differ from v2 config")
-    for name in ("laya_base", "laya_multilingual", "laya_typed", "qwen_logit"):
+    laya_backends = [
+        (backend, key)
+        for backend, key in (
+            ("laya_base", "base"),
+            ("laya_multilingual", "multilingual"),
+            ("laya_typed", "typed"),
+        )
+        if backend in config.raw["models"]  # follow the configured contenders (Amendment 6)
+    ]
+    for name in [backend for backend, _ in laya_backends] + ["qwen_logit"]:
         if str(config.raw["models"][name]["revision"]).startswith("TODO-PIN"):
             raise ValueError(f"{name} revision needs TODO-PIN resolution")
     if (
@@ -146,11 +155,7 @@ def run_probe(path: Path, *, static_only: bool = False) -> Path:
     qwen_tok = load_local_tokenizer(tokenizer_paths["qwen_tokenizer_path"])
     laya_toks = {
         backend: load_local_tokenizer(tokenizer_paths["laya_tokenizer_paths"][key])
-        for backend, key in (
-            ("laya_base", "base"),
-            ("laya_multilingual", "multilingual"),
-            ("laya_typed", "typed"),
-        )
+        for backend, key in laya_backends
     }
     result: dict[str, Any] = {
         "probe_config_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),

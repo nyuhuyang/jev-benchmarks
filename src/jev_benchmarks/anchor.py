@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
@@ -66,6 +67,10 @@ def run_anchor(
     examples = [Example.from_dict(row) for row in read_jsonl(manifest)]
     model = config.raw["models"]["gliner"]
     if backend_factory is None:
+        # GLiNER runs in this process: drop credentials and force the pinned offline cache first.
+        for name in ("OPENROUTER_API_KEY", "TYPESAFE_API_KEY"):
+            os.environ.pop(name, None)
+        os.environ["HF_HUB_OFFLINE"] = "1"
         from .adapters.gliner_v2 import GLiNERV2Backend
 
         backend = GLiNERV2Backend(model["model_id"], model["revision"], model["device"])

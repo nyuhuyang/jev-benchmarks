@@ -9,7 +9,7 @@ import yaml
 
 from jev_benchmarks.adapters.gliner_v2 import GLiNERV2Backend
 from jev_benchmarks.anchor import compare_anchor, run_anchor
-from jev_benchmarks.config import load_config
+from jev_benchmarks.config import BenchmarkConfig, load_config
 from jev_benchmarks.io import write_jsonl
 from jev_benchmarks.models import Example, Prediction
 
@@ -92,7 +92,7 @@ def test_anchor_comparison_uses_both_macro_f1_definitions() -> None:
         compare_anchor(records, {"agnews": {**published["agnews"], "brier": 0.07}})
 
 
-def test_anchor_run_uses_existing_manifest_and_fake_backend(tmp_path: Path) -> None:
+def _anchor_config(tmp_path: Path) -> BenchmarkConfig:
     root = tmp_path
     (root / "configs").mkdir()
     (root / "results/reports").mkdir(parents=True)
@@ -125,12 +125,39 @@ def test_anchor_run_uses_existing_manifest_and_fake_backend(tmp_path: Path) -> N
     (root / "results/reports/btzsc-pilot-v1.json").write_text(
         json.dumps(published), encoding="utf-8"
     )
+    return cfg
+
+
+def test_anchor_run_uses_existing_manifest_and_fake_backend(tmp_path: Path) -> None:
+    cfg = _anchor_config(tmp_path)
     upstream = FakeUpstream((0.8, 0.1, 0.1))
     output = run_anchor(
         cfg, backend_factory=lambda config: GLiNERV2Backend("model", "revision", upstream=upstream)
     )
     assert output.exists() and upstream.closed
     assert json.loads(output.read_text())["agnews"]["macro_f1_targets_predictions"] == 1.0
+
+
+def test_anchor_drops_credentials_and_goes_offline_before_loading_gliner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+
+    from jev_benchmarks.adapters import gliner_v2
+
+    cfg = _anchor_config(tmp_path)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key")
+    monkeypatch.setenv("HF_HUB_OFFLINE", "0")
+    seen = {}
+
+    def isolated(model_id, revision, device):
+        seen["key"] = os.environ.get("OPENROUTER_API_KEY")
+        seen["offline"] = os.environ.get("HF_HUB_OFFLINE")
+        return GLiNERV2Backend(model_id, revision, upstream=FakeUpstream((0.8, 0.1, 0.1)))
+
+    monkeypatch.setattr(gliner_v2, "GLiNERV2Backend", isolated)
+    run_anchor(cfg)
+    assert seen == {"key": None, "offline": "1"}
 
 
 def test_gliner_cannot_enter_confirmatory_family(tmp_path: Path) -> None:

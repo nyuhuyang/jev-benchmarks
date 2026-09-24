@@ -216,6 +216,46 @@ All metrics are reported for conditions A and B, per contender × dataset. For s
 3. Render: `rm -rf jev_laya_benchmark_zh_files`, parse-check all chunks, then render in the background. Gates: G0 render freshness, figures base64-embedded, zero `Execution halted`, every `REG$key` consumed after its `reg()`. Never publish.
 4. Add a row to `study/docs/PLANS.md`.
 
+### Amendment 6 — scope cut and headline question (user-approved 2026-09-24)
+
+Source: the approved assessment's value analysis. Public work already covers zero-shot accuracy rankings, hosted-vs-local latency and GLiNER. The study's distinct value is one question:
+
+> **When a local model gets the same ~200 labels, how much of zero-shot Jev's advantage is left — in accuracy, in calibration (A-vs-A, B-vs-B), and in how much traffic can be automated at a 5% error budget?**
+
+**Unchanged:** the frozen confirmatory family (C1–C3 zero-shot, k = 9, AG News / Emotion / SMS / Civil), the few-label arm (Amendment 5, descriptive), the budget and provenance rules, and all metrics.
+
+**Cuts:**
+- **Latency suite removed** (`dataset.latency_items: 0`): no `latency-1`/`latency-10` rows. The only latency reported is each contender's per-call wall time p50/p95 on the ordinary test split, labelled as a deployment-specific reference (hosted Jev includes an OpenRouter hop). The few-label arm reports none (Amendment 5).
+- **Permutation suite on AG News only** (`dataset.permutation_datasets: [agnews]`): 100 items × 4 orders; Jev's excess order effect over repeat noise and Qwen's two letter modes are still reported there. The Laya as-shipped-head exploratory rows on K > 20 datasets (MASSIVE) are kept.
+- **`laya_typed` removed** from the v2 models: the checkpoint is out of domain for these datasets and not in the confirmatory family.
+- **GLiNER removed from the v2 runs:** it remains only as the P3.0 harness anchor, run on the upstream pilot-v1 config and manifest.
+
+**Probe validity (review A6-F1).**
+- The `v2-probe` record (tag `v2-probe`, commit `8720bb5`, synthetic strings only) remains the capability check for the retained contenders: `laya_base`, `laya_multilingual` and `qwen_logit`.
+- Removing contenders can only shrink the common length exclusion. `laya_typed` has a 1,024-token budget and the same tokenizer as `laya_base` (512), so its exclusions are a subset of base's.
+- Final exclusion counts come from `jev-bench prepare` on the Amendment 6 config and are reported from `manifest-summary.json`.
+- `run_probe` now follows the configured Laya backends. A rerun needs a new probe tag, because the current config no longer matches `v2-probe`.
+
+**Anchor isolation (review A6-F2).**
+- The pilot-v1 config has no `local_runtime`, so the P3.0 anchor loads GLiNER in-process.
+- Before loading, it removes `OPENROUTER_API_KEY` and `TYPESAFE_API_KEY` from the environment and sets `HF_HUB_OFFLINE=1`, so it uses only the pinned cache.
+- A contract test checks that the key is absent and the hub is offline when the backend is constructed.
+
+**Reporting order (report and study Rmd):**
+1. The headline question: few-label contenders versus zero-shot Jev (accuracy, Brier A/B, coverage at 5% error).
+2. The confirmatory zero-shot family (C1–C3).
+3. Calibration A vs B and selective automation per contender.
+4. Secondary: multilingual (MASSIVE en/zh/km), yes/no and score datasets, AG News order sensitivity.
+5. The relation-to-public-results table and limitations.
+
+**Tasks (Amendment 6):**
+- [ ] `build_derived_suites` takes `permutation_datasets` (default unchanged); `load_v2_examples` passes `dataset.permutation_datasets`; contract test.
+- [ ] `configs/v2.yaml`: `permutation_datasets: [agnews]`, `latency_items: 0`; remove the `laya_typed` and `gliner` models.
+- [ ] `PROTOCOL-v2.md`: Amendment 6 section; latency, permutation and contender text updated.
+- [ ] Report/Rmd section order as above (P5/P6).
+- [x] `run_probe` follows the configured Laya backends (A6-F1).
+- [x] The anchor drops credentials and forces offline before loading GLiNER, with a contract test (A6-F2).
+
 ### Amendment 5 — few-label arm, confirmatory set, framing (user-approved 2026-09-24)
 
 Source: the cross-provider-approved assessment `docs/exec-plans/active/2026-09-24-benchmark-assessment.md` (sha `851394f6…`). The user accepted P2, P3 and C1 from it.

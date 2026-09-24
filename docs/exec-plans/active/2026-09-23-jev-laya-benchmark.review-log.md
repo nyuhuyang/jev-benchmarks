@@ -331,3 +331,13 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 - R3 medium: the few-label run took no lock and wrote features non-atomically → FIXED: `run_fewshot` holds the per-backend dispatch lock; features are written to `.tmp` and published with `replace`.
 - R4 medium: the Qwen `latency-10` batch repeated one prompt → N/A: Amendment 6 (user-approved) removes the latency suite, so no latency-10 rows exist.
 - Regression tests added for R1–R3. These fixes are not yet re-inspected.
+
+## Amendment 6 (2026-09-24) — plan review
+- Trigger: user approved the Amendment 6 scope cut and headline question. Reviewer: the same Codex plan-review session, resumed from A5 round 4.
+
+### A6 round 1 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a6-r1/claudex-rezrxkpc/result.json (resumed A5 plan-review session; cross_provider; plan sha 008aeba6…)
+- A6-F1 medium (probe hard-codes laya_typed; probe validity after the cut), A6-F2 medium (anchor loads GLiNER without credential scrubbing).
+  Amendment 6 round 1 dispositions (host = Claude):
+  - A6-F1 ACCEPTED. The plan now states that the v2-probe record (8720bb5) stays the capability check for the retained contenders, and that laya_typed's exclusions are a subset of laya_base's (same tokenizer, larger budget), so removing contenders only shrinks the common exclusion. Final counts come from `prepare` and the manifest summary. run_probe now iterates the configured Laya backends (code done), and a rerun needs a new probe tag.
+  - A6-F2 ACCEPTED. run_anchor now removes OPENROUTER_API_KEY and TYPESAFE_API_KEY and sets HF_HUB_OFFLINE=1 before constructing GLiNERV2Backend; a contract test asserts both at construction. The minimal-env worker is not used because the frozen pilot-v1 config has no local_runtime, and editing it would change the anchor's input.
