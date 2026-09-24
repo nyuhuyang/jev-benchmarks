@@ -80,7 +80,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: 确认性检验本身仍然有效，它比较的是同一平衡样本上的配对差；头条覆盖率与"对照公开结果"的解读可能被误读为部署层面的结论。
 - Criterion / 维度: Soundness, Clarity
 - Resolution / 解决或改判条件: 在协议中明确：估计对象是类别平衡的测试分布；覆盖率与校准指标不代表自然先验下的部署表现；可选的描述性补充：按候选池的类别先验对每条测试样本重新加权，给出 Brier 和覆盖率（不做推断）；与公开结果对照时注明分布差异。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ### C002: 头条问题"同样约 200 条标签"对应的是 B-vs-B，协议没有写明
 
@@ -92,7 +92,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: 读者可能用 A-vs-A 的差距回答头条问题，从而高估本地少标签方案相对于"同样拿到标签的 Jev"的优势。
 - Criterion / 维度: Clarity, Soundness
 - Resolution / 解决或改判条件: 在 Amendment 6 中写明：头条问题的对等读数是 B-vs-B 的 Brier 与覆盖率，以及准确率。准确率不受 T 影响，A 与 B 相同；A-vs-A 作为"原样零样本对有监督"的补充读数；报告和 Rmd 按这个顺序呈现。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ## 7. 次要问题与写作表达 / Minor And Presentation Concerns
 
@@ -106,7 +106,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: 读者会误以为 macro-F1 有确认性地位。
 - Criterion / 维度: Clarity
 - Resolution / 解决或改判条件: 把 macro-F1 改为 secondary/descriptive，或说明它是主要报告指标但不做推断。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ### C004: 冻结文本含已被取代的表述，修订顺序倒置
 
@@ -118,19 +118,19 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: 冻结后的协议必须能单独读懂，残留表述会让预注册文本自相矛盾。
 - Criterion / 维度: Clarity
 - Resolution / 解决或改判条件: 冻结前把 Amendment 5–6 并入正文对应章节；被取代的句子标为 superseded 或删除；修订史保留在 Deviations 或计划文件里。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ### C005: 跨数据集等权平均的 Brier 差量纲不同
 
 - Type / 类型: clarification
 - Severity / 严重程度: minor
 - Location / 位置: Confirmatory inference 第 2 段（"equal-weight average of its frozen dataset effects"）。
-- Evidence / 证据: 多分类 Brier 的取值范围与类别数有关。四个数据集分别为 K=4、6、2、2。等权平均时，K 较大的数据集可能主导数值。
+- Evidence / 证据: （复审修正：Codex A7R2-F3 指出原表述有误）按平方和计算的 Brier 对任意 K 取值都在 [0, 2]，但机会基线（均匀预测为 1 − 1/K）和典型取值随 K 变化；四个数据集分别为 K=4、6、2、2，等权合并的 Brier 效应混合了不同基线。
 - Countercheck / 反证复核: not needed：这是解读层面的问题，不影响检验的有效性。
 - Judgment / 判断: 检验仍然有效，但合并效应量的单位不直观。
 - Criterion / 维度: Clarity
 - Resolution / 解决或改判条件: 报告中同时给出每个数据集的差值，并说明合并值是跨 K 的等权平均。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ### C006: "类别平衡"受类别可得量限制
 
@@ -142,7 +142,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: "class-balanced" 对 Emotion 不成立。C001 讨论的是先验，这里是实际的样本构成。
 - Criterion / 维度: Clarity, Reproducibility
 - Resolution / 解决或改判条件: 协议写明"在类别可得量范围内平衡"；`prepare` 之后在冻结记录中列出各 split 的实际类别计数。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ### C007: 冻结记录不覆盖探针证据
 
@@ -154,7 +154,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 - Judgment / 判断: 第三方无法核对协议中关于探针结果的每一条陈述。
 - Criterion / 维度: Reproducibility
 - Resolution / 解决或改判条件: 把探针结果作为聚合报告提交到 `results/reports/`，或在 `v2-freeze.json` 里加入它的 sha256。
-- Status / 状态: unresolved
+- Status / 状态: resolved
 
 ## 8. 新颖性与相关工作 / Novelty And Positioning
 
@@ -176,7 +176,7 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 | 头条"可自动化流量"具有部署含义 | 平衡测试集；阈值在平衡的校准集上选取 | 不能直接外推到部署 | [C001] |
 | 少标签臂不泄漏测试标签 | 5 折交叉拟合；测试只用全 200 条重训的模型；合同测试"改变测试标签不改变任何概率" | 成立 | — |
 | 失败不美化结果 | Brier 2、NLL −log ε、覆盖率 0；全失败的 bootstrap 抽样有定义或 T=1 | 成立 | — |
-| 合并效应可解释 | 跨 K 的等权平均 | 有效但单位不直观 | [C005] |
+| 合并效应可解释 | 跨 K 的等权平均（范围同为 [0, 2]，基线不同） | 有效但基线不同 | [C005] |
 
 ## 10. 实验、证明与可复核性 / Evaluation And Reproducibility
 
@@ -236,10 +236,10 @@ Not assessed：未指定投稿会议，页数、匿名与格式规则不适用�
 
 | ID | Priority / severity | Required change | Why it matters | Status / version |
 | --- | --- | --- | --- | --- |
-| [C001] | 高 / major | 协议声明平衡估计对象；可选按先验重新加权的描述性 Brier 与覆盖率；与公开结果对照时注明分布差异 | 头条"可自动化流量"的解读 | unresolved / 35568e0 |
-| [C002] | 高 / major | 指定 B-vs-B 加准确率为头条对等读数，A-vs-A 为补充 | 头条问题的正确回答 | unresolved / 35568e0 |
-| [C004] | 中 / minor | 冻结前并入修订，清理被取代的文本 | 预注册文本必须自洽 | unresolved / 35568e0 |
-| [C003] | 中 / minor | 统一 macro-F1 的地位 | 避免误读确认性范围 | unresolved / 35568e0 |
-| [C006] | 低 / minor | 注明"在可得量内平衡"；`prepare` 后记录实际类别计数 | 样本构成透明 | unresolved / 35568e0 |
-| [C007] | 低 / minor | 探针证据进入冻结记录 | 能力证据可核对 | unresolved / 35568e0 |
-| [C005] | 低 / minor | 报告每个数据集的差值，并说明跨 K 等权平均 | 效应量可解释 | unresolved / 35568e0 |
+| [C001] | 高 / major | 协议声明平衡估计对象；可选按先验重新加权的描述性 Brier 与覆盖率；与公开结果对照时注明分布差异 | 头条"可自动化流量"的解读 | resolved / f659375 (Codex A7 review) |
+| [C002] | 高 / major | 指定 B-vs-B 加准确率为头条对等读数，A-vs-A 为补充 | 头条问题的正确回答 | resolved / f659375 (Codex A7 review) |
+| [C004] | 中 / minor | 冻结前并入修订，清理被取代的文本 | 预注册文本必须自洽 | resolved / f659375 (Codex A7 review) |
+| [C003] | 中 / minor | 统一 macro-F1 的地位 | 避免误读确认性范围 | resolved / f659375 (Codex A7 review) |
+| [C006] | 低 / minor | 注明"在可得量内平衡"；`prepare` 后记录实际类别计数 | 样本构成透明 | resolved / f659375 (Codex A7 review) |
+| [C007] | 低 / minor | 探针证据进入冻结记录 | 能力证据可核对 | resolved / f659375 (Codex A7 review) |
+| [C005] | 低 / minor | 报告每个数据集的差值，并说明跨 K 等权平均 | 效应量可解释 | resolved / f659375 (Codex A7 review) |

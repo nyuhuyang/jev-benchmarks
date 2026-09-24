@@ -596,7 +596,10 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
     # Per-dataset paired differences beside every pooled confirmatory and headline effect.
     per_dataset: list[dict[str, Any]] = []
     memo: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
-    for parent in [*confirmatory_rows, *headline]:
+    parents: dict[str, dict[str, Any]] = {}
+    for row in [*confirmatory_rows, *headline]:
+        parents.setdefault(row["id"], row)  # reused C1 headline rows share the C1 parent
+    for parent in parents.values():
         left, right = parent["left"], parent["right"]
         for name in parent["datasets"]:
             key = (left, right, name, parent["metric"], parent["condition"])
@@ -732,6 +735,7 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         with public_path.open(encoding="utf-8") as handle:
             public_rows = list(csv.DictReader(handle))
     payload["public_results"] = public_rows
+    payload["public_results_sha256"] = sha256_file(public_path) if public_path.exists() else None
     json_path = report_dir / "v2.json"
     json_path.write_text(scrubbed_json(payload, secret) + "\n", encoding="utf-8")
     markdown_path = report_dir / "v2.md"
@@ -796,8 +800,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         "",
         "## Per-dataset paired differences",
         "",
-        "Each pooled effect above is an equal-weight average over its datasets; multiclass Brier "
-        "ranges with K, so read pooled Brier with these rows.",
+        "Each pooled effect above is an equal-weight average over its datasets. Brier spans "
+        "[0, 2] for every K, but its chance baseline (uniform prediction: 1 - 1/K) differs by "
+        "K, so read pooled Brier with these rows.",
         "",
         "| parent | dataset | difference | 95% CI |",
         "| --- | --- | ---: | --- |",

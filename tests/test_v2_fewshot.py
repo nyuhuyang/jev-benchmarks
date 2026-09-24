@@ -810,5 +810,7 @@ def test_report_orders_like_for_like_first_with_per_dataset_rows(
     assert order == [("accuracy", "A_raw"), ("brier", "B_scaled"), ("test_coverage", "B_scaled")]
     parents = {row["parent"] for row in payload["per_dataset"]}
     assert {"C1-accuracy", "C1-brier-A", "C1-brier-B"} <= parents
+    ids = [row["id"] for row in payload["per_dataset"]]
+    assert len(ids) == len(set(ids))  # reused C1 headline rows are not emitted twice
     text = md_path.read_text()
     assert "class-balanced test items" in text and "Per-dataset paired differences" in text

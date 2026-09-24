@@ -423,3 +423,11 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
   - F5: HEADLINE_METRICS order is accuracy, B Brier, B coverage, A Brier, A coverage. Test asserts the order.
   - F6: a balanced-estimand note beside the headline; a `sampling` column in docs/public-results.csv, shown in the v2.md public table (unknown sources marked "not stated"). Test asserts the note.
   Plan and PROTOCOL text updated accordingly; freeze template updated.
+
+### A7 round 2 — Codex — REVISE
+- result: /private/tmp/claude-501/-Users-yanghu-Documents-AI-Workspace-experiments-jev-benchmarks/74a33ab8-1c21-42b2-9bff-14105b4725cf/scratchpad/claudex-a7-r2/claudex-uchhilc7/result.json (cross_provider; plan sha 3cac0cf3…). Round-1 F1–F6 confirmed addressed.
+  Amendment 7 round 2 dispositions (host = Claude). All accepted, with tests (suite passes, coverage 91.32%):
+  - A7R2-F1: per-dataset rows iterate unique parent IDs, so reused C1 headline rows share the C1 per-dataset rows; the test asserts unique per-dataset IDs.
+  - A7R2-F2: docs/public-results.csv is bound by public_results_sha256 in the freeze record; verify_frozen checks it (test: an edited file is refused); v2.json records public_results_sha256.
+  - A7R2-F3: corrected. The sum-of-squares Brier spans [0, 2] for all K; the chance baseline 1 − 1/K and typical values differ. PROTOCOL, the v2.md note and the CCFA review's C005 are updated (C005 marked as corrected by this finding).
+  The CCFA review records C001–C007 as resolved at f659375 and still passes validation.

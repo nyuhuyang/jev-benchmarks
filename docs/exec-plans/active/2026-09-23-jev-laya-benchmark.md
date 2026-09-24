@@ -256,6 +256,10 @@ The user enabled the CCFA research workflow. `ccf-paper-reviewer` (scientific mo
   - **F4:** per-dataset paired differences appear beside every pooled confirmatory and headline effect (`per_dataset` rows and a v2.md table).
   - **F5:** headline order is accuracy, B-vs-B Brier, B-vs-B coverage, then the A-vs-A supplements.
   - **F6:** a balanced-estimand note sits beside the headline, and a `sampling` column is added to `public-results.csv` and the public table.
+- [x] Codex plan review A7 round 2 (REVISE; the six round-1 findings confirmed addressed), 3 new findings addressed:
+  - **F1:** per-dataset rows are emitted once per unique parent (the reused C1 headline rows share the C1 parent).
+  - **F2:** `docs/public-results.csv` is bound by `public_results_sha256` in the freeze record, checked by `verify_frozen`, and its hash is recorded in v2.json.
+  - **F3:** the Brier wording is corrected: range [0, 2] for every K, while the chance baseline 1 − 1/K differs. CCFA C005 was narrowed accordingly.
 - [ ] Codex plan review A7 to APPROVED.
 - [ ] Fresh Codex code inspection of the Amendment 7 changes.
 - [ ] Freeze: `prepare`, fill `v2-freeze.json` (including `probe_results_sha256`), tag `v2-preregistered`.

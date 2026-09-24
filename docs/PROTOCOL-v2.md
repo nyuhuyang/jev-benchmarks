@@ -71,7 +71,8 @@ on class prevalence, and the natural rates differ sharply (for example 13.4% spa
 8.0% toxic in Civil Comments). Coverage therefore means "share of balanced test items automated",
 not deployment traffic. The class prevalence of each dataset's sampled population (one representative per content group)
 is recorded in `manifest-summary.json` as `pool_class_prevalence`, with raw-candidate prevalence
-kept separately. The summary is part of the freeze record (`manifest_summary_sha256`).
+kept separately. The summary is part of the freeze record (`manifest_summary_sha256`), as is
+`docs/public-results.csv` (`public_results_sha256`), which the report checks and records.
 Comparisons with public results list each source's sampling distribution. The three sets are disjoint. Single-source
 BTZSC and SMS Spam splits are carved into those sets. NFKC/lowercase/whitespace-collapsed/
 punctuation-stripped text hashes group duplicates before selection; MASSIVE parallel utterances
@@ -130,9 +131,10 @@ Each contrast has one accuracy test (argmax is unchanged by temperature), Brier 
 Brier B-versus-B. The resulting `k` is 9 or 3, as frozen above. Mixed-policy comparisons are
 descriptive.
 
-Each contrast is the equal-weight average of its frozen dataset effects. Multiclass Brier ranges
-with the number of classes (here K = 4, 6, 2, 2), so the pooled Brier effect is an equal-weight
-average across different K. Per-dataset differences are reported beside every pooled effect. A dataset-stratified
+Each contrast is the equal-weight average of its frozen dataset effects. The sum-of-squares Brier
+spans [0, 2] for every K, but its chance baseline (uniform prediction, 1 − 1/K) and typical values
+differ across the K = 4, 6, 2, 2 datasets, so the pooled Brier effect mixes different baselines.
+Per-dataset differences are reported beside every pooled effect. A dataset-stratified
 paired bootstrap uses 2,000 resamples. Each resample redraws calibration and test items and refits
 both B temperatures. Unadjusted 95% percentile intervals are reported. Two-sided bootstrap
 `p = 2 min(P(delta* <= 0), P(delta* >= 0))`, floored at 1/2000. Holm step-down runs across the

@@ -171,6 +171,15 @@ def test_frozen_hash_contract_and_key_scrub(
     probe.write_text('{"changed": true}', encoding="utf-8")
     with pytest.raises(RuntimeError, match="probe record hash"):
         verify_frozen(cfg, manifest)
+    probe.write_text("{}", encoding="utf-8")
+    public = tmp_path / "docs" / "public-results.csv"
+    public.write_text("source\nx\n", encoding="utf-8")
+    record = json.loads(freeze.read_text())
+    freeze.write_text(json.dumps({**record, "public_results_sha256": sha256_file(public)}))
+    verify_frozen(cfg, manifest)
+    public.write_text("source\nedited\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="public results hash"):
+        verify_frozen(cfg, manifest)
     freeze.write_text(
         json.dumps({"config_sha256": "bad", "manifest_sha256": "bad"}), encoding="utf-8"
     )

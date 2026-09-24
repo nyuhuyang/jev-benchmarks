@@ -38,6 +38,10 @@ def verify_frozen(config: BenchmarkConfig, manifest: Path) -> None:
     summary = record.get("manifest_summary_sha256")
     if summary is not None and summary != sha256_file(manifest.parent / "manifest-summary.json"):
         raise RuntimeError("manifest summary hash mismatch with preregistered record")
+    public = record.get("public_results_sha256")
+    public_path = config.path.parent.parent / "docs" / "public-results.csv"
+    if public is not None and public != sha256_file(public_path):
+        raise RuntimeError("public results hash mismatch with preregistered record")
     probe = record.get("probe_results_sha256")
     probe_path = config.path.parent.parent / "results" / "reports" / "probe-v2.json"
     if probe is not None and probe != sha256_file(probe_path):
