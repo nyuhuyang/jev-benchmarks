@@ -18,11 +18,14 @@ def main() -> None:
         for line in sys.stdin:
             request = json.loads(line)
             try:
+                example = Example.from_dict(request["example"])
                 with redirect_stdout(sys.stderr):
-                    prediction = backend.predict(
-                        request["experiment_id"], Example.from_dict(request["example"])
-                    )
-                result = {"prediction": prediction.to_dict()}
+                    if request.get("op") == "features":
+                        features = backend.features(example, int(request["layer"]))  # type: ignore[attr-defined]
+                        result = {"features": features}
+                    else:
+                        prediction = backend.predict(request["experiment_id"], example)
+                        result = {"prediction": prediction.to_dict()}
             except Exception as exc:
                 result = {"error": f"{type(exc).__name__}: {exc}"}
             print(json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)

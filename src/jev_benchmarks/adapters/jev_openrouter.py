@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import fcntl
 import json
+import math
 import os
 import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 
+from ..io import append_jsonl, read_jsonl
 from ..models import Example, Prediction
 
 URL = "https://openrouter.ai/api/alpha/decisions"
@@ -44,6 +49,63 @@ def _transport(body: bytes, key: str, timeout: float) -> tuple[int, dict[str, st
         return error.code, dict(error.headers), json.loads(error.read())
 
 
+def valid_cost(response: object) -> float | None:
+    """Return ``usage.cost`` only when it is a finite, non-negative number."""
+    usage = response.get("usage") if isinstance(response, dict) else None
+    cost = usage.get("cost") if isinstance(usage, dict) else None
+    if isinstance(cost, bool) or not isinstance(cost, int | float):
+        return None
+    return float(cost) if math.isfinite(cost) and cost >= 0 else None
+
+
+class BudgetLedger:
+    """Durable, single-dispatcher record of every Jev reservation and its closure.
+
+    A reservation is written (fsync) before dispatch. Only a ``settled`` record with a finite
+    cost replaces it; ``retained`` and unclosed reservations count at their full amount, so a
+    crash or an unbilled error can only over-count spend.
+    """
+
+    def __init__(self, path: Path, *, secret: str | None = None) -> None:
+        self.path = path
+        self.secret = secret
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_file = path.with_name("budget.lock").open("a")
+        try:
+            fcntl.flock(self._lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self._lock_file.close()
+            raise RuntimeError("another Jev dispatcher holds the budget lock") from None
+
+    def liability(self) -> float:
+        reserved: dict[str, float] = {}
+        closed: dict[str, float | None] = {}
+        for row in read_jsonl(self.path):
+            txn, event = str(row["txn"]), row["event"]
+            if event == "reserved":
+                if txn in reserved:
+                    raise RuntimeError(f"budget ledger has duplicate transaction {txn}")
+                reserved[txn] = float(row["amount"])
+            elif event in {"settled", "retained"}:
+                if txn not in reserved:
+                    raise RuntimeError(f"budget ledger closes unknown transaction {txn}")
+                if txn in closed:
+                    raise RuntimeError(f"budget ledger closes transaction {txn} twice")
+                closed[txn] = float(row["cost"]) if event == "settled" else None
+            else:
+                raise RuntimeError(f"budget ledger has unknown event {event!r}")
+        return sum(
+            cost if (cost := closed.get(txn)) is not None else amount
+            for txn, amount in reserved.items()
+        )
+
+    def append(self, row: dict[str, Any]) -> None:
+        append_jsonl(self.path, row, secret=self.secret)
+
+    def close(self) -> None:
+        self._lock_file.close()
+
+
 class Budget:
     def __init__(
         self,
@@ -51,35 +113,51 @@ class Budget:
         price_per_token: float = 4.2e-8,
         multiplier: float = 1.5,
         minimum: float = 0.00001,
+        *,
+        ledger: BudgetLedger | None = None,
     ) -> None:
         self.maximum = maximum
         self.price_per_token = price_per_token
         self.multiplier = multiplier
         self.minimum = minimum
-        self.settled = 0.0
+        self.ledger = ledger
+        self.settled = ledger.liability() if ledger else 0.0
         self.reserved = 0.0
         self.paused = False
         self._lock = threading.Lock()
 
-    def reserve(self, body: bytes) -> float:
+    def reserve(self, body: bytes, txn: str | None = None) -> float:
         amount = max(self.minimum, len(body) * self.price_per_token * self.multiplier)
         with self._lock:
             if self.paused:
                 raise RuntimeError("cost dispatch paused pending operator review")
             if self.settled + self.reserved + amount > self.maximum:
                 raise BudgetExceeded("cost budget exceeded before dispatch")
+            if self.ledger and txn:
+                self.ledger.append({"event": "reserved", "txn": txn, "amount": amount})
             self.reserved += amount
         return amount
 
-    def settle(self, reservation: float, cost: float | None) -> None:
+    def settle(
+        self, reservation: float, cost: float | None, txn: str | None = None, *, pause: bool = True
+    ) -> None:
+        """Close a reservation. ``cost=None`` retains it in full; ``pause`` stops dispatch."""
         with self._lock:
             if cost is None:
-                self.paused = True
+                if self.ledger and txn:
+                    self.ledger.append({"event": "retained", "txn": txn})
+                self.paused = self.paused or pause
                 return
+            if self.ledger and txn:
+                self.ledger.append({"event": "settled", "txn": txn, "cost": cost})
             self.reserved -= reservation
             self.settled += cost
             if self.settled + self.reserved > self.maximum:
                 self.paused = True
+
+    def close(self) -> None:
+        if self.ledger:
+            self.ledger.close()
 
 
 class JevOpenRouterBackend:
@@ -147,11 +225,12 @@ class JevOpenRouterBackend:
         start = time.perf_counter()
         with self._slots:
             for attempt in range(self.attempts):
-                reservation = self.budget.reserve(body)
+                txn = str(uuid.uuid4())
+                reservation = self.budget.reserve(body, txn)
                 try:
                     status, headers, response = self.transport(body, key, self.timeout)
                 except TimeoutError:
-                    self.budget.settle(reservation, None)
+                    self.budget.settle(reservation, None, txn)
                     self.log_attempt(
                         {
                             "example_id": example.example_id,
@@ -162,7 +241,7 @@ class JevOpenRouterBackend:
                     )
                     raise
                 except Exception:
-                    self.budget.settle(reservation, None)
+                    self.budget.settle(reservation, None, txn)
                     self.log_attempt(
                         {
                             "example_id": example.example_id,
@@ -172,12 +251,9 @@ class JevOpenRouterBackend:
                         }
                     )
                     raise
-                usage = response.get("usage", {})
-                cost = usage.get("cost")
-                if cost is not None:
-                    self.budget.settle(reservation, float(cost))
-                elif status < 400:
-                    self.budget.settle(reservation, None)
+                cost = valid_cost(response)
+                # A 2xx without a valid cost pauses; an unbilled error keeps its reservation.
+                self.budget.settle(reservation, cost, txn, pause=status < 400)
                 self.log_attempt(
                     {
                         "example_id": example.example_id,
@@ -185,10 +261,11 @@ class JevOpenRouterBackend:
                         "status": status,
                         "reservation_usd": reservation,
                         "cost_usd": cost,
+                        "txn": txn,
                     }
                 )
                 if cost is None and status < 400:
-                    raise RuntimeError("response missing usage.cost; dispatch paused")
+                    raise RuntimeError("response missing a valid usage.cost; dispatch paused")
                 if status == 429 or 500 <= status <= 599:
                     if attempt + 1 == self.attempts:
                         raise RuntimeError(f"OpenRouter HTTP {status} after retries")
@@ -251,4 +328,4 @@ class JevOpenRouterBackend:
         )
 
     def close(self) -> None:
-        return None
+        self.budget.close()

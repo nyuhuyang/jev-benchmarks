@@ -78,6 +78,16 @@ class _HFScorer:
         self.model_seconds = getattr(self, "model_seconds", 0.0) + time.perf_counter() - start
         return logits
 
+    def hidden(self, prompt: str, layer: int) -> list[float]:
+        """Output of decoder block ``layer`` at the last prompt position (fp32)."""
+        ids = self.tokenizer(prompt, add_special_tokens=False)["input_ids"]
+        with self.torch.no_grad():
+            output = self.model(
+                input_ids=self.torch.tensor([ids], device=self.device), output_hidden_states=True
+            )
+        # hidden_states[0] is the embedding output, so index ``layer`` is block ``layer``.
+        return output.hidden_states[layer][0, -1].float().cpu().tolist()
+
     def __call__(self, prompt: str, ids: Sequence[str], mode: str) -> tuple[float, ...]:
         tokenizer = self.tokenizer
         prefix = tokenizer(prompt, add_special_tokens=False)["input_ids"]
@@ -220,7 +230,8 @@ class QwenLogitBackend:
     def warmup(self, example: Example) -> None:
         self.predict("warmup", example)
 
-    def predict(self, experiment_id: str, example: Example) -> Prediction:
+    def prompt(self, example: Example) -> tuple[str, list[str]]:
+        """Rendered prompt ending in the answer prefill, and the scored option-ID suffixes."""
         order = example.option_order or tuple(range(len(example.labels)))
         prefill, labels = qwen_option_ids(len(example.labels))
         lines = []
@@ -230,7 +241,14 @@ class QwenLogitBackend:
         user = self.user_template.format(
             text=example.text, options="\n".join(lines), question=example.instructions
         )
-        prompt = self.renderer(self.system_prompt, user) + prefill
+        return self.renderer(self.system_prompt, user) + prefill, labels
+
+    def features(self, example: Example, layer: int) -> list[float]:
+        return self.scorer.hidden(self.prompt(example)[0], layer)  # type: ignore[attr-defined]
+
+    def predict(self, experiment_id: str, example: Example) -> Prediction:
+        order = example.option_order or tuple(range(len(example.labels)))
+        prompt, labels = self.prompt(example)
         mode = self.score_modes[example.dataset]
         if mode not in {"letter", "two_digit_joint", "full_sequence"}:
             raise ValueError("Qwen score mode needs TO-FILL-AFTER-PROBE resolution")

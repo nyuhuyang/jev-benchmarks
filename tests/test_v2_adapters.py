@@ -126,7 +126,7 @@ def test_openrouter_retry_retry_after_timeout_and_cost_pause(
         return 200, {}, {"model": "s", "usage": {}, "answers": {}}
 
     halted = JevOpenRouterBackend("m", {"choice": "q"}, transport=missing)
-    with pytest.raises(RuntimeError, match=r"missing usage\.cost"):
+    with pytest.raises(RuntimeError, match=r"missing a valid usage\.cost"):
         halted.predict("run", example())
     assert halted.budget.paused and halted.budget.reserved > 0
     with pytest.raises(RuntimeError, match="paused"):

@@ -65,19 +65,18 @@ def _make_v2_backend(config: BenchmarkConfig, name: str, attempts_dir: Path) -> 
     model = config.raw["models"][name]
     questions = config.raw.get("questions", {})
     if name == "jev_openrouter":
-        from .adapters.jev_openrouter import Budget, JevOpenRouterBackend
+        from .adapters.jev_openrouter import Budget, BudgetLedger, JevOpenRouterBackend
 
-        prior = 0.0
-        for path in attempts_dir.parent.glob("attempt-*/http-attempts.jsonl"):
-            for row in read_jsonl(path):
-                prior += float(row.get("cost_usd") or row.get("reservation_usd") or 0)
+        secret = os.environ.get("OPENROUTER_API_KEY")
+        # One experiment-level ledger across attempts; holds the single-dispatcher lock.
+        ledger = BudgetLedger(attempts_dir.parent / "budget-ledger.jsonl", secret=secret)
         budget = Budget(
-            maximum=float(model["max_cost_usd"]) - prior,
+            maximum=float(model["max_cost_usd"]),
             price_per_token=float(model["prompt_price_per_token"]),
             multiplier=float(model["reservation_multiplier"]),
             minimum=float(model["minimum_reservation_usd"]),
+            ledger=ledger,
         )
-        secret = os.environ.get("OPENROUTER_API_KEY")
         return JevOpenRouterBackend(
             model["model_id"],
             questions,
@@ -155,6 +154,16 @@ class LocalProcessBackend:
         if "error" in result:
             raise RuntimeError(str(result["error"]))
         return Prediction.from_dict(result["prediction"])
+
+    def features(self, example: Example, layer: int) -> list[float]:
+        assert self.process.stdin is not None and self.process.stdout is not None
+        request = {"op": "features", "layer": layer, "example": example.to_dict()}
+        self.process.stdin.write(scrubbed_json(request) + "\n")
+        self.process.stdin.flush()
+        result = json.loads(self.process.stdout.readline() or '{"error": "worker ended"}')
+        if "error" in result:
+            raise RuntimeError(str(result["error"]))
+        return [float(value) for value in result["features"]]
 
     def close(self) -> None:
         if self.process.stdin is not None:

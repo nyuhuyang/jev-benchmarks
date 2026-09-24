@@ -108,6 +108,41 @@ direct TypeSafe call, and the out-of-domain typed-decision checkpoint. Process e
 isolation for local backends is not an OS sandbox; inspected package code can still read an
 absolute-path file. No fine-tuning or benchmark-specific prompt tuning is performed; the Jev/Laya/Qwen contrasts are zero-shot. The Amendment 5 few-label arm is supervised on the 200 calibration labels per dataset and is reported as such.
 
+## Amendment 5: few-label arm, confirmatory set, framing
+
+**Framing.** This study is a same-run controlled re-check of public Jev, Laya and local-logit
+results, not a first result. `docs/public-results.csv` lists the public numbers it is compared
+against, with their protocols. Accuracy differences below the detectable range (about 4–6
+percentage points for plausible paired disagreement rates, Holm k=9) are reported as unresolved.
+
+**Non-binding expectations from public evidence** (not hypotheses; tests stay two-sided):
+- zero-shot Jev leads Laya-base and Qwen3-1.7B logit scoring;
+- the order of Laya-base and Qwen3-1.7B is undecided;
+- raw Qwen3-1.7B calibration is worst, and temperature scaling narrows its gap the most;
+- with about 200 labels, a small local classifier can approach or pass zero-shot Jev.
+
+**Confirmatory set.** The three-way English datasets are AG News, DAIR Emotion, SMS Spam and
+Civil Comments. Laya is N/A on Banking77, and UltraFeedback is descriptive because its GPT-4
+labels favour LLM-family contenders. C1–C3 × {accuracy, Brier A-vs-A, Brier B-vs-B} gives k = 9.
+The test list goes into `configs/v2.yaml` once the synthetic probe confirms that Laya-base returns
+full noul vectors; otherwise the C1-only family with k = 3 applies.
+
+**Few-label arm (descriptive; supervised on 200 calibration labels per dataset; not zero-shot).**
+- `qwen_probe` uses the output of Qwen3-1.7B decoder block 18 of 28 at the last prompt position of
+  the zero-shot prompt. The layer was fixed a priori from AnyJev's public report.
+- `tfidf_lr` uses `char_wb` 2–4-gram TF-IDF, fitted inside each training fold.
+- `prior` predicts training-label class frequencies.
+- The classifier is L2 multinomial logistic regression (`C = 1`, `lbfgs`, 2000 iterations), with
+  no hyperparameter search.
+- Cross-fitting uses `KFold(5, shuffle=True, random_state=20260923)` over the calibration items.
+  The out-of-fold probabilities are the calibration predictions for temperature, threshold and
+  bootstrap, and one refit on all 200 predicts test.
+- A class absent from a training fold gets probability 0; the count is reported.
+- Test labels are never used for fitting.
+- These contenders are compared with Jev with unadjusted intervals. They report no latency and are
+  outside the permutation and latency suites.
+- The bootstrap refits T but not the classifier, so their intervals understate training variance.
+
 ## Deviations from the locked plan
 
 - Jev's prepare-time token bound uses serialized UTF-8 request bytes, a conservative bound where

@@ -14,6 +14,9 @@ def _parser() -> argparse.ArgumentParser:
     probe = commands.add_parser("probe")
     probe.add_argument("--config", required=True)
     probe.add_argument("--static-only", action="store_true")
+    fewshot = commands.add_parser("fewshot")
+    fewshot.add_argument("--config", required=True)
+    fewshot.add_argument("--backend", required=True, choices=("qwen_probe", "tfidf_lr", "prior"))
     run = commands.add_parser("run")
     run.add_argument("--config", required=True)
     run.add_argument(
@@ -51,6 +54,10 @@ def main() -> None:
         from .data import prepare_manifest
 
         print(prepare_manifest(config))
+    elif args.command == "fewshot":
+        from .fewshot import run_fewshot
+
+        print(run_fewshot(config, args.backend))
     elif args.command == "anchor":
         from .anchor import run_anchor
 

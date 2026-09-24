@@ -267,6 +267,47 @@ models:
     - massive_en
     - massive_zh
     - massive_km
+  # Amendment 5 few-label arm: supervised on the 200 calibration labels; descriptive only.
+  qwen_probe:
+    model_id: qwen_probe
+    repeats: 1
+    layer: 18
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - ultrafeedback_helpfulness
+    - massive_en
+    - massive_zh
+    - massive_km
+  tfidf_lr:
+    model_id: tfidf_lr
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - ultrafeedback_helpfulness
+    - massive_en
+    - massive_zh
+    - massive_km
+  prior:
+    model_id: prior
+    repeats: 1
+    datasets:
+    - agnews
+    - emotiondair
+    - banking77
+    - sms_spam
+    - civil_comments
+    - ultrafeedback_helpfulness
+    - massive_en
+    - massive_zh
+    - massive_km
 metrics:
   ece_bins: 10
   error_budget: 0.05

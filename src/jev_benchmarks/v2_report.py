@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from .config import BenchmarkConfig
+from .fewshot import FEWSHOT_BACKENDS
 from .io import read_jsonl, runtime_metadata, scrubbed_json, sha256_file
 from .models import Example, Prediction
 from .v2_metrics import (
@@ -389,6 +390,33 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
                     **result,
                 }
             )
+    for few in sorted(FEWSHOT_BACKENDS & set(by_backend)):
+        if "jev_openrouter" not in by_backend:
+            continue
+        shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend[few]))
+        for metric, condition in (("accuracy", "A_raw"), ("brier", "A_raw"), ("brier", "B_scaled")):
+            result = joint_paired_bootstrap(
+                {name: by_backend["jev_openrouter"][name]["test"] for name in shared},
+                {name: by_backend[few][name]["test"] for name in shared},
+                {name: by_backend["jev_openrouter"][name]["calibration"] for name in shared},
+                {name: by_backend[few][name]["calibration"] for name in shared},
+                metric=metric,
+                condition=condition,
+                resamples=resamples,
+                seed=config.seed,
+            )
+            pairwise.append(
+                {
+                    "id": f"jev_openrouter-vs-{few}-{metric}-{condition}",
+                    "left": "jev_openrouter",
+                    "right": few,
+                    "datasets": shared,
+                    "metric": metric,
+                    "condition": condition,
+                    "family": "descriptive_few_label",
+                    **result,
+                }
+            )
     if k == 9:
         shared = sorted(set(by_backend["jev_openrouter"]) & set(by_backend["qwen_logit"]))
         frozen = set(family["tests"][0]["datasets"])
@@ -427,6 +455,11 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
         mps_available: bool | None = bool(torch.backends.mps.is_available())
     except ImportError:
         mps_available = None
+    for row in metric_rows:
+        if row["backend"] in FEWSHOT_BACKENDS:
+            # No common single-call operation: training/batch time is not latency.
+            for key in [key for key in row if "latency" in key]:
+                del row[key]
     outputs = {
         "metrics.csv": metric_rows,
         "pairwise_ci.csv": pairwise,
@@ -467,6 +500,9 @@ def build_v2_report(config: BenchmarkConfig) -> tuple[Path, Path]:
             "Public benchmark contamination is possible.",
             "Hosted latency includes an OpenRouter hop.",
             "Length exclusion favors shorter texts.",
+            "Few-label contenders use 200 in-distribution labels per dataset; not zero-shot. "
+            "Their bootstrap refits temperature but not the classifier, so intervals understate "
+            "training variance.",
         ],
     }
     json_path = report_dir / "v2.json"

@@ -41,12 +41,14 @@ jev = ["typesafe-sdk==0.6.0"]
 openrouter = []
 laya = ["laya==0.3.9", "torch>=2.5,<3", "transformers>=4.51,<5", "safetensors>=0.5,<1"]
 qwen = ["torch>=2.5,<3", "transformers>=4.51,<5", "safetensors>=0.5,<1"]
+fewshot = ["scikit-learn>=1.5,<2"]
 benchmark = [
   "datasets>=4.0,<5",
   "gliner2[local]==2.0.0",
   "protobuf>=6.0,<7",
   "sentencepiece>=0.2,<1",
   "typesafe-sdk==0.6.0",
+  "scikit-learn>=1.5,<2",
 ]
 
 [project.scripts]
