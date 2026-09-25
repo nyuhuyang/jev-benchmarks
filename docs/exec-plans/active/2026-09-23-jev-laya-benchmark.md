@@ -264,6 +264,8 @@ The user enabled the CCFA research workflow. `ccf-paper-reviewer` (scientific mo
 - [x] Fresh Codex code inspections of Amendment 7 (4 rounds; last fixes e26a9a2 not re-inspected, user chose to freeze).
 - [x] Freeze: `prepare` (5,570 manifest rows), six-hash `v2-freeze.json`, tag `v2-preregistered`; P3.0 GLiNER anchor PASS (`results/reports/anchor-v2-comparison.json`).
 - [ ] P5 `ccf-integrity-auditor` pass on the report, and P6 `ccf-paper-reviewer` pass on the Rmd.
+- [x] Pre-P4 `ccf-integrity-auditor` pass on `docs/public-results.csv` (2026-09-25, `study_research/ccfa-review-reports/public-results-integrity-audit.md`). Every number matches its source. Context corrections P4–P8 go into the unfrozen `docs/public-results-errata.csv`; the frozen CSV and PROTOCOL stay unchanged.
+- [ ] P5: `v2_report` applies `docs/public-results-errata.csv` to the public-results table (original values kept, plus an errata column) and records the errata file's sha256.
 
 ### Amendment 6 — scope cut and headline question (user-approved 2026-09-24)
 

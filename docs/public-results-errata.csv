@@ -1,0 +1,8 @@
+date,row,source,field,audit_id,original,correction,evidence
+2026-09-25,3,open-alternative-jev,protocol_note,P4,Jev figure likely relayed (not same run),"Jev figure relayed from the typed-decisions benchmark authors, not measured in the same run","measured by the benchmark authors via TypeSafe's API, 2026-09-18"
+2026-09-25,4,AnyJev,contenders,P5,Qwen3-1.7B + head on ~300 labels,Qwen3-1.7B + head on 100-300 labels per question,100–300 labels per question
+2026-09-25,4,AnyJev,values,P5,0.730 / 0.03-0.05,"0.730 (L2 accuracy); ECE 0.03-0.05 is pooled across Qwen3 sizes, not specific to 1.7B","Pooled ECE 0.03–0.05; header: model | L0, zero labels | L2 | block | cost vs one forward"
+2026-09-25,5,AnyJev,contenders,P6,LLM + head (L0 vs L2),Qwen3-8B + head (L0 vs L2),"Qwen3-8B, BANKING77 20-way, 300 test items"
+2026-09-25,5,AnyJev,protocol_note,P6,zero labels vs ~300 labels,L0 zero labels vs L2 with 100-300 labels per question,"L0, zero labels; 100–300 labels per question"
+2026-09-25,6,nibzard decision-model-benchmark,values,P7,Jev 76.3% / 13% / 0.246; GPT-oss-120b 81.3%,"Jev 76.3% (accuracy) / 13% (order flip); GPT-oss-120b 81.3%. Jev ECE 0.246 refers to forced-uncertainty items, not the banking suite",S1 banking 77-way: 76.3% / 81.3%; jev changes 13% of its choices; ECE 0.246 stated for forced-uncertainty items
+2026-09-25,6,nibzard decision-model-benchmark,protocol_note,P8,flip includes Jev run-to-run noise,inference by this study: the source does not separate run-to-run nondeterminism from the order effect,source does not discuss run-to-run nondeterminism for the permutation suite

@@ -468,3 +468,8 @@ The user approved commit + push to the fork after the Jev live smoke. The cross-
 ## P3 pilot (2026-09-24)
 - All four zero-shot contenders ran on the frozen pilot split after v2-preregistered (verify_frozen OK). 0 failures in every contender × dataset cell; vector lengths match label counts; Jev: 810 calls, one snapshot (typesafe/jev-1.13-20260917), settled $0.032196, 0 retained.
 - Aggregate: results/reports/pilot-v2.{json,md} (PILOT: plumbing/timing only, no accuracy). Qwen two-digit scoring on Banking77 is slow (p50 2.1 s, p95 8.1 s).
+
+## Pre-P4 integrity audit of public results (2026-09-25)
+- Host ran ccf-integrity-auditor (full mode). Every relayed number matches its primary source (fetched 2026-09-24).
+- Findings: P7 major (nibzard ECE 0.246 is for forced-uncertainty items, not Banking77); P4, P5, P6, P8 minor (relay provenance, pooled ECE, Qwen3-8B, 100–300 labels, inference label). In the design Rmd: R3 major (the ~200-label prior overstated; evidence splits by contender), R1 and R2 minor.
+- Disposition (user-approved): errata, not re-freeze. docs/public-results-errata.csv has 7 rows, each with an original equal to the frozen cell. The Rmd shows an errata column and rewrites the priors. The frozen PROTOCOL prior #4 stays as written and is noted as refined.
